@@ -150,7 +150,7 @@ namespace Onikiri
 		}
 
 	protected:
-		boost::dynamic_bitset<> alive_table;
+		boost::dynamic_bitset<u64, std::allocator<OpArray::ID>> alive_table;
 		std::vector< iterator > iterator_table;
 
 	};

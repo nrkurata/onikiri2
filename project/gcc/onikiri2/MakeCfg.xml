@@ -20,7 +20,7 @@
         <Directory Path="../../../src"/>
         <Directory Path="../../../src/pch"/>
         <Directory Path="../../../lib"/>
-        <Directory Path="../../../lib/boost/boost_1_53_0"/>
+        <Directory Path="../../../lib/boost/boost_1_58_0"/>
         <Directory Path="../../../lib/zlib"/>
       </IncludeDirectories>
       <LibraryDirectories>
@@ -59,7 +59,7 @@
         <Directory Path="../../../src"/>
         <Directory Path="../../../src/pch"/>
         <Directory Path="../../../lib"/>
-        <Directory Path="../../../lib/boost/boost_1_53_0"/>
+        <Directory Path="../../../lib/boost/boost_1_58_0"/>
         <Directory Path="../../../lib/zlib"/>
       </IncludeDirectories>
       <LibraryDirectories>
