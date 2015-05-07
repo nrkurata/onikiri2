@@ -235,6 +235,9 @@
     <Filter Include="src\Sim\Pipeline\Fetcher\Steerer">
       <UniqueIdentifier>{dd1f4d90-3080-472c-b287-3bb69333f69e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\Emu\AArch64Linux">
+      <UniqueIdentifier>{1ec78702-f9d4-412a-ade9-d99dd477458f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\src\Types.h">
@@ -1008,6 +1011,36 @@
     <ClInclude Include="..\..\..\src\Sim\Op\OpClassStatistics.h">
       <Filter>src\Sim\Op</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64Converter.h">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64Decoder.h">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64Info.h">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxEmulator.h">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxLoader.h">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxSyscallConv.h">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxSyscallID.h">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxTraits.h">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64Operation.h">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64OpInfo.h">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\Main.cpp">
@@ -1450,6 +1483,21 @@
     </ClCompile>
     <ClCompile Include="..\..\..\src\Sim\Op\OpClassStatistics.cpp">
       <Filter>src\Sim\Op</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\Emu\AArch64Linux\AArch64Converter.cpp">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\Emu\AArch64Linux\AArch64Decoder.cpp">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\Emu\AArch64Linux\AArch64Info.cpp">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxLoader.cpp">
+      <Filter>src\Emu\AArch64Linux</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxSyscallConv.cpp">
+      <Filter>src\Emu\AArch64Linux</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -44,6 +44,7 @@ namespace Onikiri
 	{
 		ISA_ALPHA,	// Alpha
 		ISA_PPC64,	// PowerPC 64bit
+		ISA_AARCH64,// ARMv8 64bit
 	};
 
 	class ISAInfoIF

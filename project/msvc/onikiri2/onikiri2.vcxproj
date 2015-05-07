@@ -250,6 +250,16 @@
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64Converter.h" />
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64Decoder.h" />
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64Info.h" />
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxEmulator.h" />
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxLoader.h" />
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxSyscallConv.h" />
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxSyscallID.h" />
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxTraits.h" />
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64Operation.h" />
+    <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64OpInfo.h" />
     <ClInclude Include="..\..\..\src\Emu\Utility\Math.h" />
     <ClInclude Include="..\..\..\src\Emu\Utility\System\Loader\ELF64.h" />
     <ClInclude Include="..\..\..\src\Emu\Utility\System\Loader\ElfReader.h" />
@@ -589,6 +599,11 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='FastDebug|x64'">4244;4263;4267</DisableSpecificWarnings>
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4244;4263;4267</DisableSpecificWarnings>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\Emu\AArch64Linux\AArch64Converter.cpp" />
+    <ClCompile Include="..\..\..\src\Emu\AArch64Linux\AArch64Decoder.cpp" />
+    <ClCompile Include="..\..\..\src\Emu\AArch64Linux\AArch64Info.cpp" />
+    <ClCompile Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxLoader.cpp" />
+    <ClCompile Include="..\..\..\src\Emu\AArch64Linux\AArch64LinuxSyscallConv.cpp" />
     <ClCompile Include="..\..\..\src\Emu\Utility\System\Loader\ELF64.cpp" />
     <ClCompile Include="..\..\..\src\Emu\Utility\System\Loader\ElfReader.cpp" />
     <ClCompile Include="..\..\..\src\Emu\Utility\System\Loader\Linux64Loader.cpp" />
