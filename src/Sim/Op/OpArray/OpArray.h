@@ -151,7 +151,7 @@ namespace Onikiri
 
 		// 使用中かどうかのフラグ
 		// Copy方向の配列
-		boost::dynamic_bitset<> m_alive;
+		boost::dynamic_bitset<u64, std::allocator<ID>> m_alive;
 
 		// 割り当て可能かどうかのリスト
 		pool_vector<ID> m_freeList;
