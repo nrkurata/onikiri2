@@ -1,5 +1,5 @@
-#ifndef __ARMLINUX_SYSCALLID_H__
-#define __ARMLINUX_SYSCALLID_H__
+#ifndef __AARCH64LINUX_SYSCALLID_H__
+#define __AARCH64LINUX_SYSCALLID_H__
 
 namespace Onikiri {
 	namespace AArch64Linux {

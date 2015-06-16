@@ -1,15 +1,15 @@
 #include <pch.h>
 
-#include "../../Env/Env.h"
-#include "../../SysDeps/posix.h"
-#include "AArch64LinuxSyscallConv.h"
-#include "AArch64LinuxSyscallID.h"
-#include "../Utility/System/ProcessState.h"
-#include "../Utility/System/Memory/MemorySystem.h"
-#include "../Utility/System/Memory/MemoryUtility.h"
-#include "../Utility/System/VirtualSystem.h"
-#include "../Utility/System/Syscall/SyscallConstConv.h"
-#include "../Utility/OpEmulationState.h"
+#include "Env/Env.h"
+#include "SysDeps/posix.h"
+#include "Emu/AArch64Linux/AArch64LinuxSyscallConv.h"
+#include "Emu/AArch64Linux/AArch64LinuxSyscallID.h"
+#include "Emu/Utility/System/ProcessState.h"
+#include "Emu/Utility/System/Memory/MemorySystem.h"
+#include "Emu/Utility/System/Memory/MemoryUtility.h"
+#include "Emu/Utility/System/VirtualSystem.h"
+#include "Emu/Utility/System/Syscall/SyscallConstConv.h"
+#include "Emu/Utility/OpEmulationState.h"
 
 #define SYSCALL_DEBUG
 

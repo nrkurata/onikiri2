@@ -1,8 +1,8 @@
-#ifndef __ARM_OPINFO_H__
-#define __ARM_OPINFO_H__
+#ifndef __AARCH64_OPINFO_H__
+#define __AARCH64_OPINFO_H__
 
-#include "../Utility/CommonOpInfo.h"
-#include "AArch64Info.h"
+#include "Emu/Utility/CommonOpInfo.h"
+#include "Emu/AArch64Linux/AArch64Info.h"
 
 namespace Onikiri {
 	namespace AArch64Linux {

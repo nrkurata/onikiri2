@@ -1,7 +1,7 @@
-#ifndef __ARMLINUX_ARMDECODER_H__
-#define __ARMLINUX_ARMDECODER_H__
+#ifndef __AARCH64LINUX_AARCH64DECODER_H__
+#define __AARCH64LINUX_AARCH64DECODER_H__
 
-#include "AArch64Info.h"
+#include "Emu/AArch64Linux/AArch64Info.h"
 
 namespace Onikiri {
 	namespace AArch64Linux {
@@ -26,7 +26,7 @@ namespace Onikiri {
 			// 命令codeWordをデコードし，outに格納する
 			void Decode(u32 codeWord, DecodedInsn* out);
 		private:
-			void DecodeInt(u32 codeWord, u32 opcode, DecodedInsn* out);
+			void DecodeInt(u32 codeWord, DecodedInsn* out);
 			void DecodeFP(u32 codeWord, DecodedInsn* out);
 			void DecodeMemAddress(u32 codeWord, DecodedInsn* out);
 			void DecodeLoadStore(u32 codeWord, DecodedInsn* out);

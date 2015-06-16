@@ -1,7 +1,7 @@
-#ifndef __ARMLINUXLOADER_H__
-#define __ARMLINUXLOADER_H__
+#ifndef __AARCH64LINUXLOADER_H__
+#define __AARCH64LINUXLOADER_H__
 
-#include "../Utility/System/Loader/Linux64Loader.h"
+#include "Emu/Utility/System/Loader/Linux64Loader.h"
 
 
 namespace Onikiri {

@@ -1,16 +1,16 @@
-#ifndef __ARMLINUX_TRAITS_H__
-#define __ARMLINUX_TRAITS_H__
+#ifndef __AARCH64LINUX_TRAITS_H__
+#define __AARCH64LINUX_TRAITS_H__
 
-#include "ARMLinuxSyscallConv.h"
-#include "ARMLinuxLoader.h"
-#include "ARMInfo.h"
-#include "ARMConverter.h"
-#include "ARMOpInfo.h"
+#include "Emu/AArch64Linux/AArch64LinuxSyscallConv.h"
+#include "Emu/AArch64Linux/AArch64LinuxLoader.h"
+#include "Emu/AArch64Linux/AArch64Info.h"
+#include "Emu/AArch64Linux/AArch64Converter.h"
+#include "Emu/AArch64Linux/AArch64OpInfo.h"
 
 namespace Onikiri {
 	namespace AArch64Linux {
 
-		struct ARMLinuxTraits {
+		struct AArch64LinuxTraits {
 			typedef AArch64Info ISAInfoType;
 			typedef AArch64OpInfo OpInfoType;
 			typedef AArch64Converter ConverterType;

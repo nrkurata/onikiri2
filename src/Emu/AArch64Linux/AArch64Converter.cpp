@@ -2,11 +2,11 @@
 
 #include "Emu/Utility/GenericOperation.h"
 #include "Emu/Utility/OpEmulationState.h"
-#include "AArch64Info.h"
-#include "AArch64OpInfo.h"
-#include "AArch64Decoder.h"
-#include "AArch64Converter.h"
-#include "AArch64Operation.h"
+#include "Emu/AArch64Linux/AArch64Info.h"
+#include "Emu/AArch64Linux/AArch64OpInfo.h"
+#include "Emu/AArch64Linux/AArch64Decoder.h"
+#include "Emu/AArch64Linux/AArch64Converter.h"
+#include "Emu/AArch64Linux/AArch64Operation.h"
 
 using namespace std;
 using namespace boost;
@@ -43,34 +43,36 @@ namespace {
 	const int I0 = ImmTemplateBegin+0;
 	const int I1 = ImmTemplateBegin+1;
 	const int I2 = ImmTemplateBegin+2;
+	const int I3 = ImmTemplateBegin+3;
 
 	const int T0 = AArch64Info::REG_TMP;
 	const int CPST = AArch64Info::REG_CPST;
 }
 
-#define ARMDSTOP(n) DstOperand<n>
-#define ARMSRCOP(n) AArch64SrcOperand<n>
-#define ARMSRCOPFLOAT(n) Cast< float, AsFP< double, SrcOperand<n> > >
-#define ARMSRCOPDOUBLE(n) AsFP< double, SrcOperand<n> >
+#define A64SFDSTOP(n,sf) AArch64DstOperand<n,sf>
+#define A64SFSRCOP(n,sf) AArch64SrcOperand<n,sf>
 
-#define D0 ARMDSTOP(0)
-#define D1 ARMDSTOP(1)
-#define S0 ARMSRCOP(0)
-#define S1 ARMSRCOP(1)
-#define S2 ARMSRCOP(2)
-#define S3 ARMSRCOP(3)
-#define S4 ARMSRCOP(4)
-#define S5 ARMSRCOP(5)
-#define SF0 ARMSRCOPFLOAT(0)
-#define SF1 ARMSRCOPFLOAT(1)
-#define SF2 ARMSRCOPFLOAT(2)
-#define SF3 ARMSRCOPFLOAT(3)
-#define SD0 ARMSRCOPDOUBLE(0)
-#define SD1 ARMSRCOPDOUBLE(1)
-#define SD2 ARMSRCOPDOUBLE(2)
-#define SD3 ARMSRCOPDOUBLE(3)
+#define AD0(sf) A64SFDSTOP(0,sf)
+#define AD1(sf) A64SFDSTOP(1,sf)
+#define AS0(sf) A64SFSRCOP(0,sf)
+#define AS1(sf) A64SFSRCOP(1,sf)
+#define AS2(sf) A64SFSRCOP(2,sf)
+#define AS3(sf) A64SFSRCOP(3,sf)
+#define AS4(sf) A64SFSRCOP(4,sf)
+#define AS5(sf) A64SFSRCOP(5,sf)
+#define SF SrcOperand<0>
 
-#define ARMFLAGFUNC(func) Set< D0, ##func##< u32, S0, S1, S2>>
+#define A64DSTOP(n) DstOperand<n>
+#define A64SRCOP(n) SrcOperand<n>
+#define D0 A64DSTOP(0)
+#define D1 A64DSTOP(1)
+#define S0 A64SRCOP(0)
+#define S1 A64SRCOP(1)
+#define S2 A64SRCOP(2)
+#define S3 A64SRCOP(3)
+
+#define ARMFLAGFUNC32(func) Set< D0, ##func##< u32, S0, S1, S2>>
+#define ARMFLAGFUNC64(func) Set< D0, ##func##< u64, S0, S1, S2>>
 #define ARMFUNCWITHCARRY_PSR(func, cflag, vflag) \
 	Sequence2< \
 	Set< D0,	##func##< u32, S0, S1, S2> >,\
@@ -87,120 +89,21 @@ namespace {
 	You must re-implement when you release AArch64 to avoid GPL.
 	src/opcodes/aarch64-tbl.h
 */
-AArch64Converter::OpDef AArch64Converter::m_OpDefsBase[] =
+AArch64Converter::OpDef AArch64Converter::m_OpDefsBranch[] =
 {
-	/* Add/subtract (with carry).  */
-	{"adc", 0x1a000000, 0x7fe0fc00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, CPST, -1, -1, -1},  ARMFLAGFUNC(AArch64IntAddwithCarry)}	}},
-	{"adcs", 0x3a000000, 0x7fe0fc00,  1, {{OpClassCode::iALU, {R0, CPST}, {R1, R2, CPST, -1, -1, -1}, ARMFUNCWITHCARRY_PSR(AArch64IntAddwithCarry,AArch64CarryOfAddWithCarry,AArch64AddOverflowFromWithCarry)}}},
-	{"sbc", 0x5a000000, 0x7fe0fc00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, CPST, -1, -1, -1}, ARMFLAGFUNC(AArch64IntSubwithBorrow)}}},
-	{"sbcs", 0x7a000000, 0x7fe0fc00, 1, {{OpClassCode::iALU, {R0, CPST}, {R1, R2, CPST, -1, -1, -1}, ARMFUNCWITHCARRY_PSR(AArch64IntSubwithBorrow,AArch64NotBorrowFromWithBorrow,AArch64SubOverflowFromWithBorrow)}}},
-	/* Add/subtract (extended register).  */
-	{"add", 0x0b200000, 0x7fe00000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, -1, -1, -1, -1}, Set< D0, IntAdd< u32, S0, S1> >}}},
-	{"adds", 0x2b200000, 0x7fe00000, 1, {{OpClassCode::iALU, {R0, CPST}, {R1, R2, CPST, -1, -1, -1}, ARMFUNC_PSR_ARITH(IntAdd,CarryOfAdd,AArch64AddOverflowFrom)}}},
-	{"sub", 0x4b200000, 0x7fe00000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, -1, -1, -1, -1}, Set< D0, IntSub< u32, S0, S1> >}}},
-	{"subs", 0x6b200000, 0x7fe00000, 1, {{OpClassCode::iALU, {R0, CPST}, {R1, R2, CPST, -1, -1, -1}, ARMFUNC_PSR_ARITH(IntSub,AArch64NotBorrowFrom,AArch64SubOverflowFrom)}}},
-	/* Add/subtract (immediate).  */
-	{"add", 0x11000000, 0x7f000000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, I0, -1, -1, -1, -1}, Set< D0, IntAdd< u32, S0, S1> >}}},
-	{"adds", 0x31000000, 0x7f000000, 1, {{OpClassCode::iALU, {R0, CPST}, {R1, I0, CPST, -1, -1, -1}, ARMFUNC_PSR_ARITH(IntAdd,CarryOfAdd,AArch64AddOverflowFrom)}}},
-	{"sub", 0x51000000, 0x7f000000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, I0, -1, -1, -1, -1}, Set< D0, IntSub< u32, S0, S1> >}}},
-	{"subs", 0x71000000, 0x7f000000, 1, {{OpClassCode::iALU, {R0, CPST}, {R1, I0, CPST, -1, -1, -1}, ARMFUNC_PSR_ARITH(IntSub,AArch64NotBorrowFrom,AArch64SubOverflowFrom)}}},
-	/* Add/subtract (shifted register).  */
-	{"add", 0x0b000000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, I0, -1, -1, -1, -1}, Set< D0, IntAdd< u32, S0, S1> >}}},
-	{"adds", 0x2b000000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, CPST}, {R1, R2, CPST, -1, -1, -1}, ARMFUNC_PSR_ARITH(IntAdd,CarryOfAdd,AArch64AddOverflowFrom)}}},
-	{"sub", 0x4b000000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, I0, -1, -1, -1, -1}, Set< D0, IntSub< u32, S0, S1> >}}},
-	{"subs", 0x6b000000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, CPST}, {R1, R2, CPST, -1, -1, -1}, ARMFUNC_PSR_ARITH(IntSub,AArch64NotBorrowFrom,AArch64SubOverflowFrom)}}},
-	
-	/* Bitfield.  */
-	{"sbfm", 0x13000000, 0x7f800000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, -1, -1, -1}, Set< D0, S0 >}}},
-	{"bfm", 0x33000000, 0x7f800000,  1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, -1, -1, -1}, Set< D0, S0 >}}},
-	{"ubfm", 0x53000000, 0x7f800000,  1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, -1, -1, -1}, Set< D0, S0 >}}},
-
-	/* Unconditional branch (immediate).  */
-	{"b", 0x14000000, 0xfc000000,  1, {{OpClassCode::iBU, {-1, -1}, {I0, -1, -1, -1, -1}, BranchRelUncond< S0 >}}},
-	{"bl", 0x94000000, 0xfc000000,  1, {{OpClassCode::iBU, {30, -1}, {I0, -1, -1, -1, -1}, CallRelUncond< D0, S0 >}}},
-	/* Unconditional branch (register).  */
-	{"br", 0xd61f0000, 0xfffffc1f, 1, {{OpClassCode::iBU, {-1, -1}, {R1, -1, -1, -1, -1}, BranchAbsUncond< S0 >}}},
-	{"blr", 0xd63f0000, 0xfffffc1f, 1, {{OpClassCode::CALL_JUMP, {30, -1}, {R1, -1, -1, -1, -1}, CallAbsUncond< D0, S0 >}}},
-	{"ret", 0xd65f0000, 0xfffffc1f, 1, {{OpClassCode::RET, {-1, -1}, {R1, -1, -1, -1, -1}, BranchAbsUncond< S0 >}}},
+	/** Branches, exception and system **/
 	/* Compare & branch (immediate).  */
-	{"cbz", 0x34000000, 0x7f000000, 1, {{OpClassCode::iBC, {-1, -1}, {I0, R1, -1, -1, -1}, BranchAbsCond< S0, S1 >}}},
-	{"cbnz", 0x35000000, 0x7f000000, 1, {{OpClassCode::iBC, {-1, -1}, {I0, R1, -1, -1, -1}, BranchAbsCond< S0, S1 >}}},
+	{ "cbz", 0x34000000, 0x7f000000, 1, {
+		{ OpClassCode::iBC, { -1, -1 }, { I0, I1, R0, -1, -1 }, BranchRelCond< S1, Compare< AS2(S0), IntConst<u64, 0>, IntCondEqual<u64> > > }
+	} },
+	{ "cbnz", 0x35000000, 0x7f000000, 1, {
+		{ OpClassCode::iBC, { -1, -1 }, { I0, I1, R0, -1, -1 }, BranchRelCond< S1, Compare< AS2(S0), IntConst<u64, 0>, IntCondNotEqual<u64> > > }
+	} },
 	/* Conditional branch (immediate).  */
-	{"b.c", 0x54000000, 0xff000010, 1, {{OpClassCode::iBC,  {-1, -1}, {I0, CPST, -1, -1, -1}, BranchAbsCond< S0, S1 >}}},
-	/* Conditional compare (immediate).  */
-	{"ccmn", 0x3a400800, 0x7fe00c10, 1, {{OpClassCode::iALU, {CPST, -1}, {R1, I0, I1, -1, -1}, Set< D0, S0 >}}},
-	{"ccmp", 0x7a400800, 0x7fe00c10, 1, {{OpClassCode::iALU, {CPST, -1}, {R1, I0, I1, -1, -1}, Set< D0, S0 >}}},
-	/* Conditional compare (register).  */
-	{"ccmn", 0x3a400000, 0x7fe00c10, 1, {{OpClassCode::iALU, {CPST, -1}, {R1, R2, I0, -1, -1}, Set< D0, S0 >}}},
-	{"ccmp", 0x7a400000, 0x7fe00c10, 1, {{OpClassCode::iALU, {CPST, -1}, {R1, R2, I0, -1, -1}, Set< D0, S0 >}}},
-	/* Conditional select.  */
-	{"csel", 0x1a800000, 0x7fe00c00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, CPST, I0, -1}, Set< D0, S0 >}}},
-	{"csinc", 0x1a800400, 0x7fe00c00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, CPST, I0, -1}, Set< D0, S0 >}}},
-	{"csinv", 0x5a800000, 0x7fe00c00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, CPST, -1, -1}, Set< D0, S0 >}}},
-	{"csneg", 0x5a800400, 0x7fe00c00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, CPST, -1, -1}, Set< D0, S0 >}}},
-
-	///* Crypto AES.  */
-	//{"aese", 0x4e284800, 0xfffffc00, cryptoaes, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME16B, 0},
-	//{"aesd", 0x4e285800, 0xfffffc00, cryptoaes, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME16B, 0},
-	//{"aesmc", 0x4e286800, 0xfffffc00, cryptoaes, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME16B, 0},
-	//{"aesimc", 0x4e287800, 0xfffffc00, cryptoaes, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME16B, 0},
-	///* Crypto two-reg SHA.  */
-	//{"sha1h", 0x5e280800, 0xfffffc00, cryptosha2, 0, CRYPTO, OP2 (Fd, Fn), QL_2SAMES, 0},
-	//{"sha1su1", 0x5e281800, 0xfffffc00, cryptosha2, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME4S, 0},
-	//{"sha256su0", 0x5e282800, 0xfffffc00, cryptosha2, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME4S, 0},
-	///* Crypto three-reg SHA.  */
-	//{"sha1c", 0x5e000000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Fd, Fn, Vm), QL_SHAUPT, 0},
-	//{"sha1p", 0x5e001000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Fd, Fn, Vm), QL_SHAUPT, 0},
-	//{"sha1m", 0x5e002000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Fd, Fn, Vm), QL_SHAUPT, 0},
-	//{"sha1su0", 0x5e003000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Vd, Vn, Vm), QL_V3SAME4S, 0},
-	//{"sha256h", 0x5e004000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Fd, Fn, Vm), QL_SHA256UPT, 0},
-	//{"sha256h2", 0x5e005000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Fd, Fn, Vm), QL_SHA256UPT, 0},
-	//{"sha256su1", 0x5e006000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Vd, Vn, Vm), QL_V3SAME4S, 0},
-
-	/* Data-processing (1 source).  */
-	{"rbit", 0x5ac00000, 0x7ffffc00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, -1, -1, -1, -1}, Set< D0, S0 >}}},
-	{"rev16", 0x5ac00400, 0x7ffffc00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, -1, -1, -1, -1}, Set< D0, S0 >}}},
-	{"rev", 0x5ac00800, 0xfffffc00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, -1, -1, -1, -1}, Set< D0, S0 >}}},
-	{"rev", 0xdac00c00, 0x7ffffc00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, -1, -1, -1, -1}, Set< D0, S0 >}}},
-	{"clz", 0x5ac01000, 0x7ffffc00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, -1, -1, -1, -1}, Set< D0, S0 >}}},
-	{"cls", 0x5ac01400, 0x7ffffc00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, -1, -1, -1, -1}, Set< D0, S0 >}}},
-	{"rev32", 0xdac00800, 0xfffffc00, 1, {{OpClassCode::iALU, {R0, -1}, {R1, -1, -1, -1, -1}, Set< D0, S0 >}}},
-	/* Data-processing (2 sources).  */
-	{"udiv", 0x1ac00800, 0x7fe0fc00, 1, {{OpClassCode::iDIV, {R0, -1}, {R1, R2, -1, -1, -1}, Set< D0, IntDiv<u64, S0, S1> >}}},
-	{"sdiv", 0x1ac00c00, 0x7fe0fc00, 1, {{OpClassCode::iDIV, {R0, -1}, {R1, R2, -1, -1, -1}, Set< D0, IntDiv<s64, S0, S1> >}}},
-	{"lsl", 0x1ac02000, 0x7fe0fc00, 1, {{OpClassCode::iSFT, {R0, -1}, {R1, R2, -1, -1, -1}, Set< D0, LShiftL<u64, S0, S1, 0x3f> >}}},
-	{"lsr", 0x1ac02400, 0x7fe0fc00, 1, {{OpClassCode::iSFT, {R0, -1}, {R1, R2, -1, -1, -1}, Set< D0, LShiftR<u64, S0, S1, 0x3f> >}}},
-	{"asr", 0x1ac02800, 0x7fe0fc00, 1, {{OpClassCode::iSFT, {R0, -1}, {R1, R2, -1, -1, -1}, Set< D0, AShiftR<u64, S0, S1, 0x3f>>}}},
-	{"ror", 0x1ac02c00, 0x7fe0fc00, 1, {{OpClassCode::iSFT, {R0, -1}, {R1, R2, -1, -1, -1}, Set< D0, RotateR<u64, S0, S1> >}}},
-	/* Data-processing (3 sources).  */
-	{"madd", 0x1b000000, 0x7fe08000, 2, {
-		{OpClassCode::iALU, {T0, -1}, {R1, R2, -1, -1, -1}, Set< D0, IntMul<u64, S0, S1> >},
-		{OpClassCode::iALU, {R0, -1}, {T0, R3, -1, -1, -1}, Set< D0, IntAdd<u64, S0, S1> >}
-	}},
-	{"msub", 0x1b008000, 0x7fe08000, 2, {
-		{OpClassCode::iALU, {T0, -1}, {R1, R2, -1, -1, -1}, Set< D0, IntMul<u64, S0, S1> >},
-		{OpClassCode::iALU, {R0, -1}, {T0, R3, -1, -1, -1}, Set< D0, IntSub<u64, S0, S1> >}
-	}},
-	{"smaddl", 0x9b200000, 0xffe08000, 2, {
-		{OpClassCode::iALU, {T0, -1}, {R1, R2, -1, -1, -1}, Set< D0, IntMul<s64, S0, S1> >},
-		{OpClassCode::iALU, {R0, -1}, {T0, R3, -1, -1, -1}, Set< D0, IntAdd<s64, S0, S1> >}
-	}},
-	{"smsubl", 0x9b208000, 0xffe08000, 2, {
-		{OpClassCode::iALU, {T0, -1}, {R1, R2, -1, -1, -1}, Set< D0, IntMul<s64, S0, S1> >},
-		{OpClassCode::iALU, {R0, -1}, {T0, R3, -1, -1, -1}, Set< D0, IntAdd<s64, S0, S1> >}
-	}},
-	{"smulh", 0x9b407c00, 0xffe08000, 1, {{OpClassCode::iALU, {T0, -1}, {R1, R2, -1, -1, -1}, Set< D0, IntSMulh64<S0, S1> >}}},
-	{"umaddl", 0x9ba00000, 0xffe08000, 2, {
-		{OpClassCode::iALU, {T0, -1}, {R1, R2, -1, -1, -1}, Set< D0, IntMul<u64, S0, S1> >},
-		{OpClassCode::iALU, {R0, -1}, {T0, R3, -1, -1, -1}, Set< D0, IntAdd<u64, S0, S1> >}
-	}},
-	{"umsubl", 0x9ba08000, 0xffe08000, 2, {
-		{OpClassCode::iALU, {T0, -1}, {R1, R2, -1, -1, -1}, Set< D0, IntMul<u64, S0, S1> >},
-		{OpClassCode::iALU, {R0, -1}, {T0, R3, -1, -1, -1}, Set< D0, IntAdd<u64, S0, S1> >}
-	}},
-	{"umulh", 0x9bc07c00, 0xffe08000, 1, {{OpClassCode::iALU, {T0, -1}, {R1, R2, -1, -1, -1}, Set< D0, IntUMulh64<S0, S1> >}}},
-
-	/* Excep'n generation.  */
+	{ "b.c", 0x54000000, 0xff000010, 1, {
+		{ OpClassCode::iBC, { -1, -1 }, { I0, I1, CPST, -1, -1 }, BranchRelCond< S0, AArch64CondCalc<S1, S2> > }
+	} },
+	/* Exception generation.  */
 	//{"svc", 0xd4000001, 0xffe0001f, exception, 0, CORE, OP1 (EXCEPTION), {}, 0},
 	//{"hvc", 0xd4000002, 0xffe0001f, exception, 0, CORE, OP1 (EXCEPTION), {}, 0},
 	//{"smc", 0xd4000003, 0xffe0001f, exception, 0, CORE, OP1 (EXCEPTION), {}, 0},
@@ -209,100 +112,12 @@ AArch64Converter::OpDef AArch64Converter::m_OpDefsBase[] =
 	//{"dcps1", 0xd4a00001, 0xffe0001f, exception, 0, CORE, OP1 (EXCEPTION), {}, F_OPD0_OPT | F_DEFAULT (0)},
 	//{"dcps2", 0xd4a00002, 0xffe0001f, exception, 0, CORE, OP1 (EXCEPTION), {}, F_OPD0_OPT | F_DEFAULT (0)},
 	//{"dcps3", 0xd4a00003, 0xffe0001f, exception, 0, CORE, OP1 (EXCEPTION), {}, F_OPD0_OPT | F_DEFAULT (0)},
-
-	/* Extract.  */
-	{"extr", 0x13800000, 0x7fa00000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, I0, -1, -1}, Set< D0, S0 >}}},
-
-	///* Floating-point<->fixed-point conversions.  */
-	//{"scvtf", 0x1e020000, 0x7f3f0000, float2fix, 0, FP, OP3 (Fd, Rn, FBITS), QL_FIX2FP, F_FPTYPE | F_SF},
-	//{"ucvtf", 0x1e030000, 0x7f3f0000, float2fix, 0, FP, OP3 (Fd, Rn, FBITS), QL_FIX2FP, F_FPTYPE | F_SF},
-	//{"fcvtzs", 0x1e180000, 0x7f3f0000, float2fix, 0, FP, OP3 (Rd, Fn, FBITS), QL_FP2FIX, F_FPTYPE | F_SF},
-	//{"fcvtzu", 0x1e190000, 0x7f3f0000, float2fix, 0, FP, OP3 (Rd, Fn, FBITS), QL_FP2FIX, F_FPTYPE | F_SF},
-	///* Floating-point<->integer conversions.  */
-	//{"fcvtns", 0x1e200000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
-	//{"fcvtnu", 0x1e210000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
-	//{"scvtf", 0x1e220000, 0x7f3ffc00, float2int, 0, FP, OP2 (Fd, Rn), QL_INT2FP, F_FPTYPE | F_SF},
-	//{"ucvtf", 0x1e230000, 0x7f3ffc00, float2int, 0, FP, OP2 (Fd, Rn), QL_INT2FP, F_FPTYPE | F_SF},
-	//{"fcvtas", 0x1e240000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
-	//{"fcvtau", 0x1e250000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
-	//{"fmov", 0x1e260000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
-	//{"fmov", 0x1e270000, 0x7f3ffc00, float2int, 0, FP, OP2 (Fd, Rn), QL_INT2FP, F_FPTYPE | F_SF},
-	//{"fcvtps", 0x1e280000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
-	//{"fcvtpu", 0x1e290000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
-	//{"fcvtms", 0x1e300000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
-	//{"fcvtmu", 0x1e310000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
-	//{"fcvtzs", 0x1e380000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
-	//{"fcvtzu", 0x1e390000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
-	//{"fmov", 0x9eae0000, 0xfffffc00, float2int, 0, FP, OP2 (Rd, VnD1), QL_XVD1, 0},
-	//{"fmov", 0x9eaf0000, 0xfffffc00, float2int, 0, FP, OP2 (VdD1, Rn), QL_VD1X, 0},
-	///* Floating-point conditional compare.  */
-	//{"fccmp", 0x1e200400, 0xff200c10, floatccmp, 0, FP, OP4 (Fn, Fm, NZCV, COND), QL_FCCMP, F_FPTYPE},
-	//{"fccmpe", 0x1e200410, 0xff200c10, floatccmp, 0, FP, OP4 (Fn, Fm, NZCV, COND), QL_FCCMP, F_FPTYPE},
-	///* Floating-point compare.  */
-	//{"fcmp", 0x1e202000, 0xff20fc1f, floatcmp, 0, FP, OP2 (Fn, Fm), QL_FP2, F_FPTYPE},
-	//{"fcmpe", 0x1e202010, 0xff20fc1f, floatcmp, 0, FP, OP2 (Fn, Fm), QL_FP2, F_FPTYPE},
-	//{"fcmp", 0x1e202008, 0xff20fc1f, floatcmp, 0, FP, OP2 (Fn, FPIMM0), QL_DST_SD, F_FPTYPE},
-	//{"fcmpe", 0x1e202018, 0xff20fc1f, floatcmp, 0, FP, OP2 (Fn, FPIMM0), QL_DST_SD, F_FPTYPE},
-	///* Floating-point data-processing (1 source).  */
-	//{"fmov", 0x1e204000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
-	//{"fabs", 0x1e20c000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
-	//{"fneg", 0x1e214000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
-	//{"fsqrt", 0x1e21c000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
-	//{"fcvt", 0x1e224000, 0xff3e7c00, floatdp1, OP_FCVT, FP, OP2 (Fd, Fn), QL_FCVT, F_FPTYPE | F_MISC},
-	//{"frintn", 0x1e244000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
-	//{"frintp", 0x1e24c000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
-	//{"frintm", 0x1e254000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
-	//{"frintz", 0x1e25c000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
-	//{"frinta", 0x1e264000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
-	//{"frintx", 0x1e274000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
-	//{"frinti", 0x1e27c000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
-	///* Floating-point data-processing (2 source).  */
-	//{"fmul", 0x1e200800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
-	//{"fdiv", 0x1e201800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
-	//{"fadd", 0x1e202800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
-	//{"fsub", 0x1e203800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
-	//{"fmax", 0x1e204800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
-	//{"fmin", 0x1e205800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
-	//{"fmaxnm", 0x1e206800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
-	//{"fminnm", 0x1e207800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
-	//{"fnmul", 0x1e208800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
-	///* Floating-point data-processing (3 source).  */
-	//{"fmadd", 0x1f000000, 0xff208000, floatdp3, 0, FP, OP4 (Fd, Fn, Fm, Fa), QL_FP4, F_FPTYPE},
-	//{"fmsub", 0x1f008000, 0xff208000, floatdp3, 0, FP, OP4 (Fd, Fn, Fm, Fa), QL_FP4, F_FPTYPE},
-	//{"fnmadd", 0x1f200000, 0xff208000, floatdp3, 0, FP, OP4 (Fd, Fn, Fm, Fa), QL_FP4, F_FPTYPE},
-	//{"fnmsub", 0x1f208000, 0xff208000, floatdp3, 0, FP, OP4 (Fd, Fn, Fm, Fa), QL_FP4, F_FPTYPE},
-	///* Floating-point immediate.  */
-	//{"fmov", 0x1e201000, 0xff201fe0, floatimm, 0, FP, OP2 (Fd, FPIMM), QL_DST_SD, F_FPTYPE},
-	///* Floating-point conditional select.  */
-	//{"fcsel", 0x1e200c00, 0xff200c00, floatsel, 0, FP, OP4 (Fd, Fn, Fm, COND), QL_FP_COND, F_FPTYPE},
-
-	/* Logical (immediate).  */
-	{"and", 0x12000000, 0x7f800000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, I0, -1, -1, -1}, Set< D0, BitAnd<u64, S0, S1> >}}},
-	{"orr", 0x32000000, 0x7f800000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, I0, -1, -1, -1}, Set< D0, BitOr<u64, S0, S1> >}}},
-	{"eor", 0x52000000, 0x7f800000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, I0, -1, -1, -1}, Set< D0, BitXor<u64, S0, S1> >}}},
-	{"ands", 0x72000000, 0x7f800000, 1, {{OpClassCode::iALU, {R0, CPST}, {R1, I0, -1, -1, -1}, Set< D0, S0 >}}},
-	/* Logical (shifted register).  */
-	{"and", 0xa000000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, I0, I1, -1}, Set< D0, BitAnd<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> >}}},
-	{"bic", 0xa200000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, I0, -1, -1}, Set< D0, BitAnd<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> >}}},
-	{"orr", 0x2a000000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, I0, -1, -1}, Set< D0, BitOr<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> >}}},
-	{"orn", 0x2a200000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, I0, -1, -1}, Set< D0, BitOrNot<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> >}}},
-	{"eor", 0x4a000000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, I0, -1, -1}, Set< D0, BitXor<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> >}}},
-	{"eon", 0x4a200000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, I0, -1, -1}, Set< D0, BitXorNot<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> >}}},
-	{"ands", 0x6a000000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, CPST}, {R1, R2, I0, -1, -1}, Set< D0, S0 >}}},
-	{"bics", 0x6a200000, 0x7f200000, 1, {{OpClassCode::iALU, {R0, CPST}, {R1, R2, I0, -1, -1}, Set< D0, S0 >}}},
-	/* Move wide (immediate).  */
-	{"movn", 0x12800000, 0x7f800000, 1, {{OpClassCode::iALU, {R0, -1}, {I0, I1, -1, -1, -1}, Set< D0, BitNot<u64, LShiftL<u64, S0, S1, 0x3f>> >}}},
-	{"movz", 0x52800000, 0x7f800000, 1, {{OpClassCode::iALU, {R0, -1}, {I0, I1, -1, -1, -1}, Set< D0, LShiftL<u64, S0, S1, 0x3f> >}}},
-	{"movk", 0x72800000, 0x7f800000, 1, {{OpClassCode::iALU, {R0, -1}, {R0, I0, I1, -1, -1, -1}, Set< D0, S0 >}}},
-
-	/* PC-rel. addressing.  */
-	{"adr", 0x10000000, 0x9f000000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, -1, -1, -1}, Set< D0, S0 >}}},
-	{"adrp", 0x90000000, 0x9f000000, 1, {{OpClassCode::iALU, {R0, -1}, {R1, R2, -1, -1, -1}, Set< D0, S0 >}}},
-
 	/* System.  */
 	//{"msr", 0xd500401f, 0xfff8f01f, ic_system, 0, CORE, OP2 (PSTATEFIELD, UIMM4), {}, -1},
 	//{"hint", 0xd503201f, 0xfffff01f, ic_system, 0, CORE, OP1 (UIMM7), {}, F_HAS_ALIAS},
-	{"nop", 0xd503201f, 0xffffffff, 1, {{OpClassCode::iNOP, {-1, -1}, {-1, -1, -1, -1, -1}, NoOperation}}},
+	{ "nop", 0xd503201f, 0xffffffff, 1, { 
+		{ OpClassCode::iNOP, { -1, -1 }, { -1, -1, -1, -1, -1 }, NoOperation }
+	} },
 	//{"yield", 0xd503203f, 0xffffffff, ic_system, 0, CORE, OP0 (), {}, F_ALIAS},
 	//{"wfe", 0xd503205f, 0xffffffff, ic_system, 0, CORE, OP0 (), {}, F_ALIAS},
 	//{"wfi", 0xd503207f, 0xffffffff, ic_system, 0, CORE, OP0 (), {}, F_ALIAS},
@@ -321,8 +136,39 @@ AArch64Converter::OpDef AArch64Converter::m_OpDefsBase[] =
 	//{"sysl", 0xd5280000, 0xfff80000, ic_system, 0, CORE, OP5 (Rt, UIMM3_OP1, Cn, Cm, UIMM3_OP2), QL_SYSL, 0},
 	//{"mrs", 0xd5300000, 0xfff00000, ic_system, 0, CORE, OP2 (Rt, SYSREG), QL_DST_X, 0},
 	/* Test & branch (immediate).  */
-	{"tbz", 0x36000000, 0x7f000000, 1, {{OpClassCode::iBC, {-1, -1}, {R1, I0, I1, -1, -1}, Set< D0, S0 >}}},
-	{"tbnz", 0x37000000, 0x7f000000, 1, {{OpClassCode::iBC, {-1, -1}, {R1, I0, I1, -1, -1}, Set< D0, S0 >}}},
+	{ "tbz", 0x36000000, 0x7f000000, 1, {
+		{ OpClassCode::iBC, { -1, -1 }, { I0, I1, I2, R0, -1 }, BranchRelCond< S2, Compare< AArch64BitTest<u64, S3, AArch64BitConcateNate<u64, S1, IntConst<u64, 5>, S0>>, IntConst<u64, 0>, IntCondEqual<u64> > > }
+	} },
+	{ "tbnz", 0x37000000, 0x7f000000, 1, { 
+		{ OpClassCode::iBC, { -1, -1 }, { I0, I1, I2, R0, -1 }, BranchRelCond< S2, Compare< AArch64BitTest<u64, S3, AArch64BitConcateNate<u64, S1, IntConst<u64, 5>, S0>>, IntConst<u64, 0>, IntCondNotEqual<u64> > > }
+	} },
+	/* Unconditional branch (immediate).  */
+	{ "b", 0x14000000, 0xfc000000, 1, {
+		{ OpClassCode::iBU, { -1, -1 }, { I0, -1, -1, -1, -1 }, BranchRelUncond< S0 > } 
+	} },
+	{ "bl", 0x94000000, 0xfc000000, 1, { 
+		{ OpClassCode::CALL, { 30, -1 }, { I0, -1, -1, -1, -1 }, CallRelUncond< D0, S0 > }
+	} },
+	/* Unconditional branch (register).  */
+	{ "br", 0xd61f0000, 0xfffffc1f, 1, {
+		{ OpClassCode::iBU, { -1, -1 }, { R0, -1, -1, -1, -1 }, BranchAbsUncond< S0 > } 
+	} },
+	{ "blr", 0xd63f0000, 0xfffffc1f, 1, { 
+		{ OpClassCode::CALL_JUMP, { 30, -1 }, { R0, -1, -1, -1, -1 }, CallAbsUncond< D0, S0 > } // is CALL_JUMP ok??
+	} },
+	{ "ret", 0xd65f0000, 0xfffffc1f, 1, { 
+		{ OpClassCode::RET, { -1, -1 }, { R0, -1, -1, -1, -1 }, BranchAbsUncond< S0 > } 
+	} },
+	/* Exception return
+	{ "eret", 0xd69f0000, 0xfffffc1f, 1, {
+		{ OpClassCode::RET, { -1, -1 }, { R0, -1, -1, -1, -1 }, BranchAbsUncond< S0 > } 
+	} },
+	*/
+	/* Debug restore process state
+	{ "drps", 0xd6bf0000, 0xfffffc1f, 1, {
+		{ OpClassCode::RET, { -1, -1 }, { R0, -1, -1, -1, -1 }, BranchAbsUncond< S0 > } 
+	} },
+	*/
 };
 
 // 投機的にフェッチされたときにはエラーにせず，実行されたときにエラーにする
@@ -332,131 +178,779 @@ AArch64Converter::OpDef AArch64Converter::m_OpDefUnknown =
 
 AArch64Converter::OpDef AArch64Converter::m_OpDefsLoadStore[] =
 {
-	///* Load/store register (immediate indexed).  */
-	//{"strb", 0x38000400, 0xffe00400, ldst_imm9, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W8, 0},
-	//{"ldrb", 0x38400400, 0xffe00400, ldst_imm9, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W8, 0},
-	//{"ldrsb", 0x38800400, 0xffa00400, ldst_imm9, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R8, F_LDS_SIZE},
-	//{"str", 0x3c000400, 0x3f600400, ldst_imm9, 0, CORE, OP2 (Ft, ADDR_SIMM9), QL_LDST_FP, 0},
-	//{"ldr", 0x3c400400, 0x3f600400, ldst_imm9, 0, CORE, OP2 (Ft, ADDR_SIMM9), QL_LDST_FP, 0},
-	//{"strh", 0x78000400, 0xffe00400, ldst_imm9, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W16, 0},
-	//{"ldrh", 0x78400400, 0xffe00400, ldst_imm9, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W16, 0},
-	//{"ldrsh", 0x78800400, 0xffa00400, ldst_imm9, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R16, F_LDS_SIZE},
-	//{"str", 0xb8000400, 0xbfe00400, ldst_imm9, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R, F_GPRSIZE_IN_Q},
-	//{"ldr", 0xb8400400, 0xbfe00400, ldst_imm9, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R, F_GPRSIZE_IN_Q},
-	//{"ldrsw", 0xb8800400, 0xffe00400, ldst_imm9, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_X32, 0},
-	///* Load/store register (unsigned immediate).  */
-	//{"strb", 0x39000000, 0xffc00000, ldst_pos, OP_STRB_POS, CORE, OP2 (Rt, ADDR_UIMM12), QL_LDST_W8, 0},
-	//{"ldrb", 0x39400000, 0xffc00000, ldst_pos, OP_LDRB_POS, CORE, OP2 (Rt, ADDR_UIMM12), QL_LDST_W8, 0},
-	//{"ldrsb", 0x39800000, 0xff800000, ldst_pos, OP_LDRSB_POS, CORE, OP2 (Rt, ADDR_UIMM12), QL_LDST_R8, F_LDS_SIZE},
-	//{"str", 0x3d000000, 0x3f400000, ldst_pos, OP_STRF_POS, CORE, OP2 (Ft, ADDR_UIMM12), QL_LDST_FP, 0},
-	//{"ldr", 0x3d400000, 0x3f400000, ldst_pos, OP_LDRF_POS, CORE, OP2 (Ft, ADDR_UIMM12), QL_LDST_FP, 0},
-	//{"strh", 0x79000000, 0xffc00000, ldst_pos, OP_STRH_POS, CORE, OP2 (Rt, ADDR_UIMM12), QL_LDST_W16, 0},
-	//{"ldrh", 0x79400000, 0xffc00000, ldst_pos, OP_LDRH_POS, CORE, OP2 (Rt, ADDR_UIMM12), QL_LDST_W16, 0},
-	//{"ldrsh", 0x79800000, 0xff800000, ldst_pos, OP_LDRSH_POS, CORE, OP2 (Rt, ADDR_UIMM12), QL_LDST_R16, F_LDS_SIZE},
-	//{"str", 0xb9000000, 0xbfc00000, ldst_pos, OP_STR_POS, CORE, OP2 (Rt, ADDR_UIMM12), QL_LDST_R, F_GPRSIZE_IN_Q},
-	//{"ldr", 0xb9400000, 0xbfc00000, ldst_pos, OP_LDR_POS, CORE, OP2 (Rt, ADDR_UIMM12), QL_LDST_R, F_GPRSIZE_IN_Q},
-	//{"ldrsw", 0xb9800000, 0xffc00000, ldst_pos, OP_LDRSW_POS, CORE, OP2 (Rt, ADDR_UIMM12), QL_LDST_X32, 0},
-	//{"prfm", 0xf9800000, 0xffc00000, ldst_pos, OP_PRFM_POS, CORE, OP2 (PRFOP, ADDR_UIMM12), QL_LDST_PRFM, 0},
-	///* Load/store register (register offset).  */
-	//{"strb", 0x38200800, 0xffe00c00, ldst_regoff, 0, CORE, OP2 (Rt, ADDR_REGOFF), QL_LDST_W8, 0},
-	//{"ldrb", 0x38600800, 0xffe00c00, ldst_regoff, 0, CORE, OP2 (Rt, ADDR_REGOFF), QL_LDST_W8, 0},
-	//{"ldrsb", 0x38a00800, 0xffa00c00, ldst_regoff, 0, CORE, OP2 (Rt, ADDR_REGOFF), QL_LDST_R8, F_LDS_SIZE},
-	//{"str", 0x3c200800, 0x3f600c00, ldst_regoff, 0, CORE, OP2 (Ft, ADDR_REGOFF), QL_LDST_FP, 0},
-	//{"ldr", 0x3c600800, 0x3f600c00, ldst_regoff, 0, CORE, OP2 (Ft, ADDR_REGOFF), QL_LDST_FP, 0},
-	//{"strh", 0x78200800, 0xffe00c00, ldst_regoff, 0, CORE, OP2 (Rt, ADDR_REGOFF), QL_LDST_W16, 0},
-	//{"ldrh", 0x78600800, 0xffe00c00, ldst_regoff, 0, CORE, OP2 (Rt, ADDR_REGOFF), QL_LDST_W16, 0},
-	//{"ldrsh", 0x78a00800, 0xffa00c00, ldst_regoff, 0, CORE, OP2 (Rt, ADDR_REGOFF), QL_LDST_R16, F_LDS_SIZE},
-	//{"str", 0xb8200800, 0xbfe00c00, ldst_regoff, 0, CORE, OP2 (Rt, ADDR_REGOFF), QL_LDST_R, F_GPRSIZE_IN_Q},
-	//{"ldr", 0xb8600800, 0xbfe00c00, ldst_regoff, 0, CORE, OP2 (Rt, ADDR_REGOFF), QL_LDST_R, F_GPRSIZE_IN_Q},
-	//{"ldrsw", 0xb8a00800, 0xffe00c00, ldst_regoff, 0, CORE, OP2 (Rt, ADDR_REGOFF), QL_LDST_X32, 0},
-	//{"prfm", 0xf8a00800, 0xffe00c00, ldst_regoff, 0, CORE, OP2 (PRFOP, ADDR_REGOFF), QL_LDST_PRFM, 0},
-	///* Load/store register (unprivileged).  */
-	//{"sttrb", 0x38000800, 0xffe00c00, ldst_unpriv, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W8, 0},
-	//{"ldtrb", 0x38400800, 0xffe00c00, ldst_unpriv, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W8, 0},
-	//{"ldtrsb", 0x38800800, 0xffa00c00, ldst_unpriv, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R8, F_LDS_SIZE},
-	//{"sttrh", 0x78000800, 0xffe00c00, ldst_unpriv, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W16, 0},
-	//{"ldtrh", 0x78400800, 0xffe00c00, ldst_unpriv, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W16, 0},
-	//{"ldtrsh", 0x78800800, 0xffa00c00, ldst_unpriv, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R16, F_LDS_SIZE},
-	//{"sttr", 0xb8000800, 0xbfe00c00, ldst_unpriv, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R, F_GPRSIZE_IN_Q},
-	//{"ldtr", 0xb8400800, 0xbfe00c00, ldst_unpriv, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R, F_GPRSIZE_IN_Q},
-	//{"ldtrsw", 0xb8800800, 0xffe00c00, ldst_unpriv, 0, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_X32, 0},
-	///* Load/store register (unscaled immediate).  */
-	//{"sturb", 0x38000000, 0xffe00c00, ldst_unscaled, OP_STURB, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W8, F_HAS_ALIAS},
-	//{"ldurb", 0x38400000, 0xffe00c00, ldst_unscaled, OP_LDURB, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W8, F_HAS_ALIAS},
-	//{"strb", 0x38000000, 0xffe00c00, ldst_unscaled, 0, CORE, OP2 (Rt, ADDR_SIMM9_2), QL_LDST_W8, F_ALIAS},
-	//{"ldrb", 0x38400000, 0xffe00c00, ldst_unscaled, 0, CORE, OP2 (Rt, ADDR_SIMM9_2), QL_LDST_W8, F_ALIAS},
-	//{"ldursb", 0x38800000, 0xffa00c00, ldst_unscaled, OP_LDURSB, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R8, F_HAS_ALIAS | F_LDS_SIZE},
-	//{"ldrsb", 0x38800000, 0xffa00c00, ldst_unscaled, 0, CORE, OP2 (Rt, ADDR_SIMM9_2), QL_LDST_R8, F_ALIAS | F_LDS_SIZE},
-	//{"stur", 0x3c000000, 0x3f600c00, ldst_unscaled, OP_STURV, CORE, OP2 (Ft, ADDR_SIMM9), QL_LDST_FP, F_HAS_ALIAS},
-	//{"ldur", 0x3c400000, 0x3f600c00, ldst_unscaled, OP_LDURV, CORE, OP2 (Ft, ADDR_SIMM9), QL_LDST_FP, F_HAS_ALIAS},
-	//{"str", 0x3c000000, 0x3f600c00, ldst_unscaled, 0, CORE, OP2 (Ft, ADDR_SIMM9_2), QL_LDST_FP, F_ALIAS},
-	//{"ldr", 0x3c400000, 0x3f600c00, ldst_unscaled, 0, CORE, OP2 (Ft, ADDR_SIMM9_2), QL_LDST_FP, F_ALIAS},
-	//{"sturh", 0x78000000, 0xffe00c00, ldst_unscaled, OP_STURH, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W16, F_HAS_ALIAS},
-	//{"ldurh", 0x78400000, 0xffe00c00, ldst_unscaled, OP_LDURH, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_W16, F_HAS_ALIAS},
-	//{"strh", 0x78000000, 0xffe00c00, ldst_unscaled, 0, CORE, OP2 (Rt, ADDR_SIMM9_2), QL_LDST_W16, F_ALIAS},
-	//{"ldrh", 0x78400000, 0xffe00c00, ldst_unscaled, 0, CORE, OP2 (Rt, ADDR_SIMM9_2), QL_LDST_W16, F_ALIAS},
-	//{"ldursh", 0x78800000, 0xffa00c00, ldst_unscaled, OP_LDURSH, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R16, F_HAS_ALIAS | F_LDS_SIZE},
-	//{"ldrsh", 0x78800000, 0xffa00c00, ldst_unscaled, 0, CORE, OP2 (Rt, ADDR_SIMM9_2), QL_LDST_R16, F_ALIAS | F_LDS_SIZE},
-	//{"stur", 0xb8000000, 0xbfe00c00, ldst_unscaled, OP_STUR, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R, F_HAS_ALIAS | F_GPRSIZE_IN_Q},
-	//{"ldur", 0xb8400000, 0xbfe00c00, ldst_unscaled, OP_LDUR, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_R, F_HAS_ALIAS | F_GPRSIZE_IN_Q},
-	//{"str", 0xb8000000, 0xbfe00c00, ldst_unscaled, 0, CORE, OP2 (Rt, ADDR_SIMM9_2), QL_LDST_R, F_ALIAS | F_GPRSIZE_IN_Q},
-	//{"ldr", 0xb8400000, 0xbfe00c00, ldst_unscaled, 0, CORE, OP2 (Rt, ADDR_SIMM9_2), QL_LDST_R, F_ALIAS | F_GPRSIZE_IN_Q},
-	//{"ldursw", 0xb8800000, 0xffe00c00, ldst_unscaled, OP_LDURSW, CORE, OP2 (Rt, ADDR_SIMM9), QL_LDST_X32, F_HAS_ALIAS},
-	//{"ldrsw", 0xb8800000, 0xffe00c00, ldst_unscaled, 0, CORE, OP2 (Rt, ADDR_SIMM9_2), QL_LDST_X32, F_ALIAS},
-	//{"prfum", 0xf8800000, 0xffe00c00, ldst_unscaled, OP_PRFUM, CORE, OP2 (PRFOP, ADDR_SIMM9), QL_LDST_PRFM, F_HAS_ALIAS},
-	//{"prfm", 0xf8800000, 0xffe00c00, ldst_unscaled, 0, CORE, OP2 (PRFOP, ADDR_SIMM9_2), QL_LDST_PRFM, F_ALIAS},
-	///* Load/store exclusive.  */
-	//{"stxrb", 0x8007c00, 0xffe08000, ldstexcl, 0, CORE, OP3 (Rs, Rt, ADDR_SIMPLE), QL_W2_LDST_EXC, 0},
-	//{"stlxrb", 0x800fc00, 0xffe08000, ldstexcl, 0, CORE, OP3 (Rs, Rt, ADDR_SIMPLE), QL_W2_LDST_EXC, 0},
-	//{"ldxrb", 0x85f7c00, 0xffe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_W1_LDST_EXC, 0},
-	//{"ldaxrb", 0x85ffc00, 0xffe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_W1_LDST_EXC, 0},
-	//{"stlrb", 0x89ffc00, 0xffe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_W1_LDST_EXC, 0},
-	//{"ldarb", 0x8dffc00, 0xffe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_W1_LDST_EXC, 0},
-	//{"stxrh", 0x48007c00, 0xffe08000, ldstexcl, 0, CORE, OP3 (Rs, Rt, ADDR_SIMPLE), QL_W2_LDST_EXC, 0},
-	//{"stlxrh", 0x4800fc00, 0xffe08000, ldstexcl, 0, CORE, OP3 (Rs, Rt, ADDR_SIMPLE), QL_W2_LDST_EXC, 0},
-	//{"ldxrh", 0x485f7c00, 0xffe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_W1_LDST_EXC, 0},
-	//{"ldaxrh", 0x485ffc00, 0xffe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_W1_LDST_EXC, 0},
-	//{"stlrh", 0x489ffc00, 0xffe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_W1_LDST_EXC, 0},
-	//{"ldarh", 0x48dffc00, 0xffe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_W1_LDST_EXC, 0},
-	//{"stxr", 0x88007c00, 0xbfe08000, ldstexcl, 0, CORE, OP3 (Rs, Rt, ADDR_SIMPLE), QL_R2_LDST_EXC, F_GPRSIZE_IN_Q},
-	//{"stlxr", 0x8800fc00, 0xbfe08000, ldstexcl, 0, CORE, OP3 (Rs, Rt, ADDR_SIMPLE), QL_R2_LDST_EXC, F_GPRSIZE_IN_Q},
-	//{"stxp", 0x88200000, 0xbfe08000, ldstexcl, 0, CORE, OP4 (Rs, Rt, Rt2, ADDR_SIMPLE), QL_R3_LDST_EXC, F_GPRSIZE_IN_Q},
-	//{"stlxp", 0x88208000, 0xbfe08000, ldstexcl, 0, CORE, OP4 (Rs, Rt, Rt2, ADDR_SIMPLE), QL_R3_LDST_EXC, F_GPRSIZE_IN_Q},
-	//{"ldxr", 0x885f7c00, 0xbfe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_R1NIL, F_GPRSIZE_IN_Q},
-	//{"ldaxr", 0x885ffc00, 0xbfe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_R1NIL, F_GPRSIZE_IN_Q},
-	//{"ldxp", 0x887f0000, 0xbfe08000, ldstexcl, 0, CORE, OP3 (Rt, Rt2, ADDR_SIMPLE), QL_R2NIL, F_GPRSIZE_IN_Q},
-	//{"ldaxp", 0x887f8000, 0xbfe08000, ldstexcl, 0, CORE, OP3 (Rt, Rt2, ADDR_SIMPLE), QL_R2NIL, F_GPRSIZE_IN_Q},
-	//{"stlr", 0x889ffc00, 0xbfe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_R1NIL, F_GPRSIZE_IN_Q},
-	//{"ldar", 0x88dffc00, 0xbfe08000, ldstexcl, 0, CORE, OP2 (Rt, ADDR_SIMPLE), QL_R1NIL, F_GPRSIZE_IN_Q},
-	///* Load/store no-allocate pair (offset).  */
-	//{"stnp", 0x28000000, 0x7fc00000, ldstnapair_offs, 0, CORE, OP3 (Rt, Rt2, ADDR_SIMM7), QL_LDST_PAIR_R, F_SF},
-	//{"ldnp", 0x28400000, 0x7fc00000, ldstnapair_offs, 0, CORE, OP3 (Rt, Rt2, ADDR_SIMM7), QL_LDST_PAIR_R, F_SF},
-	//{"stnp", 0x2c000000, 0x3fc00000, ldstnapair_offs, 0, CORE, OP3 (Ft, Ft2, ADDR_SIMM7), QL_LDST_PAIR_FP, 0},
-	//{"ldnp", 0x2c400000, 0x3fc00000, ldstnapair_offs, 0, CORE, OP3 (Ft, Ft2, ADDR_SIMM7), QL_LDST_PAIR_FP, 0},
-	///* Load/store register pair (offset).  */
-	//{"stp", 0x29000000, 0x7ec00000, ldstpair_off, 0, CORE, OP3 (Rt, Rt2, ADDR_SIMM7), QL_LDST_PAIR_R, F_SF},
-	//{"ldp", 0x29400000, 0x7ec00000, ldstpair_off, 0, CORE, OP3 (Rt, Rt2, ADDR_SIMM7), QL_LDST_PAIR_R, F_SF},
-	//{"stp", 0x2d000000, 0x3fc00000, ldstpair_off, 0, CORE, OP3 (Ft, Ft2, ADDR_SIMM7), QL_LDST_PAIR_FP, 0},
-	//{"ldp", 0x2d400000, 0x3fc00000, ldstpair_off, 0, CORE, OP3 (Ft, Ft2, ADDR_SIMM7), QL_LDST_PAIR_FP, 0},
-	//{"ldpsw", 0x69400000, 0xffc00000, ldstpair_off, 0, CORE, OP3 (Rt, Rt2, ADDR_SIMM7), QL_LDST_PAIR_X32, 0},
-	///* Load/store register pair (indexed).  */
-	//{"stp", 0x28800000, 0x7ec00000, ldstpair_indexed, 0, CORE, OP3 (Rt, Rt2, ADDR_SIMM7), QL_LDST_PAIR_R, F_SF},
-	//{"ldp", 0x28c00000, 0x7ec00000, ldstpair_indexed, 0, CORE, OP3 (Rt, Rt2, ADDR_SIMM7), QL_LDST_PAIR_R, F_SF},
-	//{"stp", 0x2c800000, 0x3ec00000, ldstpair_indexed, 0, CORE, OP3 (Ft, Ft2, ADDR_SIMM7), QL_LDST_PAIR_FP, 0},
-	//{"ldp", 0x2cc00000, 0x3ec00000, ldstpair_indexed, 0, CORE, OP3 (Ft, Ft2, ADDR_SIMM7), QL_LDST_PAIR_FP, 0},
-	//{"ldpsw", 0x68c00000, 0xfec00000, ldstpair_indexed, 0, CORE, OP3 (Rt, Rt2, ADDR_SIMM7), QL_LDST_PAIR_X32, 0},
-	///* Load register (literal).  */
-	//{"ldr", 0x18000000, 0xbf000000, loadlit, OP_LDR_LIT, CORE, OP2 (Rt, ADDR_PCREL19), QL_R_PCREL, F_GPRSIZE_IN_Q},
-	//{"ldr", 0x1c000000, 0x3f000000, loadlit, OP_LDRV_LIT, CORE, OP2 (Ft, ADDR_PCREL19), QL_FP_PCREL, 0},
-	//{"ldrsw", 0x98000000, 0xff000000, loadlit, OP_LDRSW_LIT, CORE, OP2 (Rt, ADDR_PCREL19), QL_X_PCREL, 0},
-	//{"prfm", 0xd8000000, 0xff000000, loadlit, OP_PRFM_LIT, CORE, OP2 (PRFOP, ADDR_PCREL19), QL_PRFM_PCREL, 0},
+	/* Load register (literal).  */
+	{ "ldr", 0x18000000, 0xff000000, 1, {
+		{ OpClassCode::iLD, { R0, -1 }, { I0, -1, -1, -1, -1 }, Set<D0, Load<u32, IntAdd<u64, S0, AArch64CurrentPC<u64>>>> }
+	} },
+	{ "ldr", 0x58000000, 0xff000000, 1, {
+		{ OpClassCode::iLD, { R0, -1 }, { I0, -1, -1, -1, -1 }, Set<D0, Load<u64, IntAdd<u64, S0, AArch64CurrentPC<u64>>>> }
+	} },
+	{ "ldrsw", 0x98000000, 0xff000000, 1, {
+		{ OpClassCode::iLD, { R0, -1 }, { I0, -1, -1, -1, -1 }, Set<D0, Load<u32, S0>> }
+	} },
+	// SIMD/FP
+	//{ "ldr", 0x1c000000, 0xff000000, 1, {
+	//	{ OpClassCode::iLD, { R0, -1 }, { I0, -1, -1, -1, -1 }, Set<D0, Load<u32, S0>> }
+	//} },
+	//{ "ldr", 0x5c000000, 0xff000000, 1, {
+	//	{ OpClassCode::iLD, { R0, -1 }, { I0, -1, -1, -1, -1 }, Set<D0, Load<u32, S0>> }
+	//} },
+	//{ "ldr", 0x9c000000, 0xff000000, 1, {
+	//	{ OpClassCode::iLD, { R0, -1 }, { I0, -1, -1, -1, -1 }, Set<D0, Load<u32, S0>> }
+	//} },
+	// Prefetch
+	//{ "prfm", 0xd8000000, 0xff000000, 1, {
+	//	{ OpClassCode::iLD, { R0, -1 }, { I0, -1, -1, -1, -1 }, Set<D0, Load<u32, S0>> }
+	//} },
+	/* Load/store exclusive.  */
+	{ "stxrb", 0x08007c00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u8, S0, S1 > } 
+	} },
+	{ "stlxrb", 0x0800fc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u8, S0, S1 > }
+	} },
+	{ "ldxrb", 0x085f7c00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u8, S0, S1 > }
+	} },
+	{ "ldaxrb", 0x085ffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u8, S0, S1 > }
+	} },
+	{ "stlrb", 0x089ffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u8, S0, S1 > }
+	} },
+	{ "ldarb", 0x08dffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u8, S0, S1 > }
+	} },
+	{ "stxrh", 0x48007c00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stlxrh", 0x4800fc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldxrh", 0x485f7c00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldaxrh", 0x485ffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stlrh", 0x489ffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldarh", 0x48dffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stxr", 0x88007c00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stxr", 0xc8007c00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stlxr", 0x8800fc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stlxr", 0xc800fc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stxp", 0x88200000, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stxp", 0xc8200000, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stlxp", 0xc8208000, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldxr", 0x885f7c00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldxr", 0xc85f7c00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldaxr", 0x885ffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldaxr", 0xc85ffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldxp", 0x887f0000, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldxp", 0xc87f0000, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldaxp", 0x887f8000, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldaxp", 0xc87f8000, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stlr", 0x889ffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stlr", 0xc89ffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldar", 0x88dffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldar", 0xc8dffc00, 0xffe08000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	/* Load/store no-allocate pair (offset).  */
+	{ "stnp", 0x28000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stnp", 0x2c000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stnp", 0x6c000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stnp", 0xa8000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stnp", 0xac000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldnp", 0x28400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldnp", 0x2c400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldnp", 0x6c400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldnp", 0xa8400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldnp", 0xac400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	/* Load/store register (immediate post-indexed).  */
+	{ "strb", 0x38000400, 0xffe00c00, 2, {
+		{ OpClassCode::iST, { -1, -1 }, { R0, R1, -1, -1, -1 }, Store< u8, S1, S0 > },
+		{ OpClassCode::iALU, { R0, -1}, { R0, I1, -1, -1, -1 }, Set<D0, IntAdd< u64, S1, S0 >> }
+	} },
+	{ "ldrb", 0x38400400, 0xffe00c00, 2, {
+		{ OpClassCode::iLD, { R1, -1 }, { R0, -1, -1, -1, -1 }, Set<D0, Load< u8, S0>> },
+		{ OpClassCode::iALU, { R0, -1 }, { R0, I1, -1, -1, -1 }, Set<D0, IntAdd< u64, S1, S0 >> }
+	} },
+	{ "ldrsb", 0x38800400, 0xffe00c00, 1, {
+		{ OpClassCode::iLD, { R1, -1 }, { R0, -1, -1, -1, -1 }, SetSext<D0, Load< u8, S0>> },
+		{ OpClassCode::iALU, { R0, -1 }, { R0, I1, -1, -1, -1 }, Set<D0, IntAdd< u64, S1, S0 >> }
+	} },
+	{ "ldrsb", 0x38c00400, 0xffe00c00, 1, {
+		{ OpClassCode::iLD, { R1, -1 }, { R0, -1, -1, -1, -1 }, Set<D0, SetSext<s32, Load<u8, S0>>> },
+		{ OpClassCode::iALU, { R0, -1 }, { R0, I1, -1, -1, -1 }, Set<D0, IntAdd< u64, S1, S0 >> }
+	} },
+	{ "str", 0x3c000400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0x3c800400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0x7c000400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xb8000400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xbc000400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xf8000400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xfc000400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x3c400400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x3cc00400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x7c400400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xb8400400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xbc400400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xf8400400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xfc400400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "strh", 0x78000400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrh", 0x78400400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsh", 0x78800400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsh", 0x78c00400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsw", 0xb8800400, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	/* Load/store register (immediate pre-indexed).  */
+	{ "strb", 0x38000c00, 0xffe00c00, 2, {
+		{ OpClassCode::iALU, { R0, -1 }, { R0, I1, -1, -1, -1 }, Set<D0, IntAdd< u64, S1, S0 >> },
+		{ OpClassCode::iST, { -1, -1 }, { R0, R1, -1, -1, -1 }, Store< u8, S1, S0 > }
+	} },
+	{ "ldrb", 0x38400c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsb", 0x38800c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsb", 0x38800c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsb", 0x38c00c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0x3c000c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0x3c800c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0x7c000c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xb8000c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xbc000c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xf8000c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xfc000c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x3c400c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x3cc00c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x7c400c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xb8400c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xbc400c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xf8400c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xfc400c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "strh", 0x78000c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrh", 0x78400c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsh", 0x78800c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsh", 0x78c00c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsw", 0xb8800c00, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	/* Load/store register (register offset).  */
+	{ "strb", 0x38200800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrb", 0x38600800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsb", 0x38a00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsb", 0x38e00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0x3c200800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0x3ca00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0x7c200800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xb8200800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xbc200800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xf8200800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xf8c00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x3c600800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x3ce00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x7c600800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xb8600800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xbc600800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xf8600800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xf8e00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "strh", 0x78200800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrh", 0x78600800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsh", 0x78a00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsh", 0x78e00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsw", 0xb8a00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "prfm", 0xf8a00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	/* Load/store register (unprivileged).  */
+	{ "sttrb", 0x38000800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldtrb", 0x38400800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldtrsb", 0x38800800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldtrsb", 0x38c00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "sttrh", 0x78000800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldtrh", 0x78400800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldtrsh", 0x78800800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldtrsh", 0x78c00800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "sttr", 0xb8000800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "sttr", 0xf8000800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldtr", 0xb8400800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldtr", 0xf8400800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldtrsw", 0xb8800800, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	/* Load/store register (unscaled immediate).  */
+	{ "sturb", 0x38000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldurb", 0x38400000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldursb", 0x38800000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldursb", 0x38c00000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stur", 0x3c000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stur", 0x3c800000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stur", 0x7c000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stur", 0xb8000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stur", 0xbc000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stur", 0xf8000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stur", 0xfc000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldur", 0x3c000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldur", 0x3c800000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldur", 0x7c000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldur", 0xb8000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldur", 0xbc000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldur", 0xf8000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldur", 0xfc000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "sturh", 0x78000000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldurh", 0x78400000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldursh", 0x78800000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldursh", 0x78c00000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldursw", 0xb8800000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "prfum", 0xf8800000, 0xffe00c00, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	/* Load/store register (unsigned immediate).  */
+	{ "strb", 0x39000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrb", 0x39400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsb", 0x39800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsb", 0x39c00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0x3d000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0x3d800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0x7d000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xb9000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xbd000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xf9000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "str", 0xfd000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x3d400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x3dc00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0x7d400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xb9400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xbd400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xf9400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldr", 0xfd400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "strh", 0x79000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrh", 0x79400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsh", 0x79800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsh", 0x79c00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldrsw", 0xb9800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "prfm", 0xf9800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	/* Load/store register pair (offset).  */
+	{ "stp", 0x29000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0x2d000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0x6d000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0xa9000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0xad000000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0x29400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0x2d400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0x6d400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0xa9400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0xad400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldpsw", 0x69400000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	/* Load/store register pair (post-indexed).  */
+	{ "stp", 0x28800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0x2c800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0x6c800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0xa8800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0xac800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0x28c00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0x2cc00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0x6cc00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0xa8c00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0xacc00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldpsw", 0x68c00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	/* Load/store register pair (pre-indexed).  */
+	{ "stp", 0x29800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0x2d800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0x6d800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0xa9800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "stp", 0xad800000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0x29c00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0x2dc00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0x6dc00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0xa9c00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldp", 0xadc00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+	{ "ldpsw", 0x69c00000, 0xffc00000, 1, {
+		{ OpClassCode::iST, { -1, -1 }, { R1, R2, -1, -1, -1 }, Store< u16, S0, S1 > }
+	} },
+};
 
-	{"nop", 0xd503201f, 0xffffffff, 1, {{OpClassCode::iNOP, {-1, -1}, {-1, -1, -1, -1, -1}, NoOperation}}}, // dummy
+AArch64Converter::OpDef AArch64Converter::m_OpDefsDataProcess[] =
+{
+	/** Immediate **/
+	/* Add/subtract (immediate).  */
+	{ "add", 0x11000000, 0x7f000000, 1, { { OpClassCode::iALU, { R0, -1 }, { I0, I1, I2, R1, -1, -1 }, Set< D0, IntAdd< u32, S0, S1> > } } },
+	{ "adds", 0x31000000, 0x7f000000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, I0, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntAdd, CarryOfAdd, AArch64AddOverflowFrom) } } },
+	{ "sub", 0x51000000, 0x7f000000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, I0, -1, -1, -1, -1 }, Set< D0, IntSub< u32, S0, S1> > } } },
+	{ "subs", 0x71000000, 0x7f000000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, I0, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntSub, AArch64NotBorrowFrom, AArch64SubOverflowFrom) } } },
+	/* Bitfield.  */
+	{ "sbfm", 0x13000000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, S0 > } } },
+	{ "bfm", 0x33000000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, S0 > } } },
+	{ "ubfm", 0x53000000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, S0 > } } },
+	/* Extract.  */
+	{ "extr", 0x13800000, 0x7fa00000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, S0 > } } },
+	/* Logical (immediate).  */
+	{ "and", 0x12000000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, I0, -1, -1, -1 }, Set< D0, BitAnd<u64, S0, S1> > } } },
+	{ "orr", 0x32000000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, I0, -1, -1, -1 }, Set< D0, BitOr<u64, S0, S1> > } } },
+	{ "eor", 0x52000000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, I0, -1, -1, -1 }, Set< D0, BitXor<u64, S0, S1> > } } },
+	{ "ands", 0x72000000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, I0, -1, -1, -1 }, Set< D0, S0 > } } },
+	/* Move wide (immediate).  */
+	{ "movn", 0x12800000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, -1 }, { I0, I1, -1, -1, -1 }, Set< D0, BitNot<u64, LShiftL<u64, S0, S1, 0x3f>> > } } },
+	{ "movz", 0x52800000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, -1 }, { I0, I1, -1, -1, -1 }, Set< D0, LShiftL<u64, S0, S1, 0x3f> > } } },
+	{ "movk", 0x72800000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, -1 }, { R0, I0, I1, -1, -1, -1 }, Set< D0, S0 > } } },
+	/* PC-rel. addressing.  */
+	{ "adr", 0x10000000, 0x9f000000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, S0 > } } },
+	{ "adrp", 0x90000000, 0x9f000000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, S0 > } } },
+
+	/** Register **/
+	/* Add/subtract (extended register).  */
+	{ "add", 0x0b200000, 0x7fe00000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, -1, -1, -1, -1 }, Set< D0, IntAdd< u32, S0, S1> > } } },
+	{ "adds", 0x2b200000, 0x7fe00000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntAdd, CarryOfAdd, AArch64AddOverflowFrom) } } },
+	{ "sub", 0x4b200000, 0x7fe00000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, -1, -1, -1, -1 }, Set< D0, IntSub< u32, S0, S1> > } } },
+	{ "subs", 0x6b200000, 0x7fe00000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntSub, AArch64NotBorrowFrom, AArch64SubOverflowFrom) } } },
+	/* Add/subtract (shifted register).  */
+	{ "add", 0x0b000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, I0, -1, -1, -1, -1 }, Set< D0, IntAdd< u32, S0, S1> > } } },
+	{ "adds", 0x2b000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntAdd, CarryOfAdd, AArch64AddOverflowFrom) } } },
+	{ "sub", 0x4b000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, I0, -1, -1, -1, -1 }, Set< D0, IntSub< u32, S0, S1> > } } },
+	{ "subs", 0x6b000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntSub, AArch64NotBorrowFrom, AArch64SubOverflowFrom) } } },
+	/* Add/subtract (with carry).  */
+	{ "adc", 0x1a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, CPST, -1, -1, -1 }, ARMFLAGFUNC32(AArch64IntAddwithCarry) } } },
+	{ "adcs", 0x3a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNCWITHCARRY_PSR(AArch64IntAddwithCarry, AArch64CarryOfAddWithCarry, AArch64AddOverflowFromWithCarry) } } },
+	{ "sbc", 0x5a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, CPST, -1, -1, -1 }, ARMFLAGFUNC32(AArch64IntSubwithBorrow) } } },
+	{ "sbcs", 0x7a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNCWITHCARRY_PSR(AArch64IntSubwithBorrow, AArch64NotBorrowFromWithBorrow, AArch64SubOverflowFromWithBorrow) } } },
+	/* Conditional compare (immediate).  */
+	{ "ccmn", 0x3a400800, 0x7fe00c10, 1, { { OpClassCode::iALU, { CPST, -1 }, { R1, I0, I1, -1, -1 }, Set< D0, S0 > } } },
+	{ "ccmp", 0x7a400800, 0x7fe00c10, 1, { { OpClassCode::iALU, { CPST, -1 }, { R1, I0, I1, -1, -1 }, Set< D0, S0 > } } },
+	/* Conditional compare (register).  */
+	{ "ccmn", 0x3a400000, 0x7fe00c10, 1, { { OpClassCode::iALU, { CPST, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, S0 > } } },
+	{ "ccmp", 0x7a400000, 0x7fe00c10, 1, { { OpClassCode::iALU, { CPST, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, S0 > } } },
+	/* Conditional select.  */
+	{ "csel", 0x1a800000, 0x7fe00c00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, CPST, I0, -1 }, Set< D0, S0 > } } },
+	{ "csinc", 0x1a800400, 0x7fe00c00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, CPST, I0, -1 }, Set< D0, S0 > } } },
+	{ "csinv", 0x5a800000, 0x7fe00c00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, CPST, -1, -1 }, Set< D0, S0 > } } },
+	{ "csneg", 0x5a800400, 0x7fe00c00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, CPST, -1, -1 }, Set< D0, S0 > } } },
+	/* Data-processing (1 source).  */
+	{ "rbit", 0x5ac00000, 0x7ffffc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, -1, -1, -1, -1 }, Set< D0, S0 > } } },
+	{ "rev16", 0x5ac00400, 0x7ffffc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, -1, -1, -1, -1 }, Set< D0, S0 > } } },
+	{ "rev", 0x5ac00800, 0xfffffc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, -1, -1, -1, -1 }, Set< D0, S0 > } } },
+	{ "rev", 0xdac00c00, 0x7ffffc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, -1, -1, -1, -1 }, Set< D0, S0 > } } },
+	{ "clz", 0x5ac01000, 0x7ffffc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, -1, -1, -1, -1 }, Set< D0, S0 > } } },
+	{ "cls", 0x5ac01400, 0x7ffffc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, -1, -1, -1, -1 }, Set< D0, S0 > } } },
+	{ "rev32", 0xdac00800, 0xfffffc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, -1, -1, -1, -1 }, Set< D0, S0 > } } },
+	/* Data-processing (2 sources).  */
+	{ "udiv", 0x1ac00800, 0x7fe0fc00, 1, { { OpClassCode::iDIV, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, IntDiv<u64, S0, S1> > } } },
+	{ "sdiv", 0x1ac00c00, 0x7fe0fc00, 1, { { OpClassCode::iDIV, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, IntDiv<s64, S0, S1> > } } },
+	{ "lsl", 0x1ac02000, 0x7fe0fc00, 1, { { OpClassCode::iSFT, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, LShiftL<u64, S0, S1, 0x3f> > } } },
+	{ "lsr", 0x1ac02400, 0x7fe0fc00, 1, { { OpClassCode::iSFT, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, LShiftR<u64, S0, S1, 0x3f> > } } },
+	{ "asr", 0x1ac02800, 0x7fe0fc00, 1, { { OpClassCode::iSFT, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, AShiftR<u64, S0, S1, 0x3f>> } } },
+	{ "ror", 0x1ac02c00, 0x7fe0fc00, 1, { { OpClassCode::iSFT, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, RotateR<u64, S0, S1> > } } },
+
+	/* Data-processing (3 sources).  */
+	{ "madd", 0x1b000000, 0x7fe08000, 2, {
+		{ OpClassCode::iALU, { T0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, IntMul<u64, S0, S1> > },
+		{ OpClassCode::iALU, { R0, -1 }, { T0, R3, -1, -1, -1 }, Set< D0, IntAdd<u64, S0, S1> > }
+	} },
+	{ "msub", 0x1b008000, 0x7fe08000, 2, {
+		{ OpClassCode::iALU, { T0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, IntMul<u64, S0, S1> > },
+		{ OpClassCode::iALU, { R0, -1 }, { T0, R3, -1, -1, -1 }, Set< D0, IntSub<u64, S0, S1> > }
+	} },
+	{ "smaddl", 0x9b200000, 0xffe08000, 2, {
+		{ OpClassCode::iALU, { T0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, IntMul<s64, S0, S1> > },
+		{ OpClassCode::iALU, { R0, -1 }, { T0, R3, -1, -1, -1 }, Set< D0, IntAdd<s64, S0, S1> > }
+	} },
+	{ "smsubl", 0x9b208000, 0xffe08000, 2, {
+		{ OpClassCode::iALU, { T0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, IntMul<s64, S0, S1> > },
+		{ OpClassCode::iALU, { R0, -1 }, { T0, R3, -1, -1, -1 }, Set< D0, IntAdd<s64, S0, S1> > }
+	} },
+	{ "smulh", 0x9b407c00, 0xffe08000, 1, { { OpClassCode::iALU, { T0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, IntSMulh64<S0, S1> > } } },
+	{ "umaddl", 0x9ba00000, 0xffe08000, 2, {
+		{ OpClassCode::iALU, { T0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, IntMul<u64, S0, S1> > },
+		{ OpClassCode::iALU, { R0, -1 }, { T0, R3, -1, -1, -1 }, Set< D0, IntAdd<u64, S0, S1> > }
+	} },
+	{ "umsubl", 0x9ba08000, 0xffe08000, 2, {
+		{ OpClassCode::iALU, { T0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, IntMul<u64, S0, S1> > },
+		{ OpClassCode::iALU, { R0, -1 }, { T0, R3, -1, -1, -1 }, Set< D0, IntAdd<u64, S0, S1> > }
+	} },
+	{ "umulh", 0x9bc07c00, 0xffe08000, 1, { { OpClassCode::iALU, { T0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, IntUMulh64<S0, S1> > } } },
+	/* Logical (shifted register).  */
+	{ "and", 0xa000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, I1, -1 }, Set< D0, BitAnd<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	{ "bic", 0xa200000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitAnd<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	{ "orr", 0x2a000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitOr<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	{ "orn", 0x2a200000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitOrNot<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	{ "eor", 0x4a000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitXor<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	{ "eon", 0x4a200000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitXorNot<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	{ "ands", 0x6a000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, I0, -1, -1 }, Set< D0, S0 > } } },
+	{ "bics", 0x6a200000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, I0, -1, -1 }, Set< D0, S0 > } } },
+
 };
 
 
 AArch64Converter::OpDef AArch64Converter::m_OpDefsSIMD[] =
-{	///* AdvSIMD across lanes.  */
+{
+	///* AdvSIMD across lanes.  */
 	//{"saddlv", 0xe303800, 0xbf3ffc00, asimdall, 0, SIMD, OP2 (Fd, Vn), QL_XLANES_L, F_SIZEQ},
 	//{"smaxv", 0xe30a800, 0xbf3ffc00, asimdall, 0, SIMD, OP2 (Fd, Vn), QL_XLANES, F_SIZEQ},
 	//{"sminv", 0xe31a800, 0xbf3ffc00, asimdall, 0, SIMD, OP2 (Fd, Vn), QL_XLANES, F_SIZEQ},
@@ -946,6 +1440,91 @@ AArch64Converter::OpDef AArch64Converter::m_OpDefsSIMD[] =
 	//{"fcvtzu", 0x7f00fc00, 0xff80fc00, asisdshf, 0, SIMD, OP3 (Sd, Sn, IMM_VLSR), QL_SSHIFT_SD, 0},
 
 	{"nop", 0xd503201f, 0xffffffff, 1, {{OpClassCode::iNOP, {-1, -1}, {-1, -1, -1, -1, -1}, NoOperation}}}, // dummy
+};
+
+AArch64Converter::OpDef AArch64Converter::m_OpDefsFP[] =
+{
+	///* Crypto AES.  */
+	//{"aese", 0x4e284800, 0xfffffc00, cryptoaes, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME16B, 0},
+	//{"aesd", 0x4e285800, 0xfffffc00, cryptoaes, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME16B, 0},
+	//{"aesmc", 0x4e286800, 0xfffffc00, cryptoaes, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME16B, 0},
+	//{"aesimc", 0x4e287800, 0xfffffc00, cryptoaes, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME16B, 0},
+	///* Crypto three-reg SHA.  */
+	//{"sha1c", 0x5e000000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Fd, Fn, Vm), QL_SHAUPT, 0},
+	//{"sha1p", 0x5e001000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Fd, Fn, Vm), QL_SHAUPT, 0},
+	//{"sha1m", 0x5e002000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Fd, Fn, Vm), QL_SHAUPT, 0},
+	//{"sha1su0", 0x5e003000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Vd, Vn, Vm), QL_V3SAME4S, 0},
+	//{"sha256h", 0x5e004000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Fd, Fn, Vm), QL_SHA256UPT, 0},
+	//{"sha256h2", 0x5e005000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Fd, Fn, Vm), QL_SHA256UPT, 0},
+	//{"sha256su1", 0x5e006000, 0xffe0fc00, cryptosha3, 0, CRYPTO, OP3 (Vd, Vn, Vm), QL_V3SAME4S, 0},
+	///* Crypto two-reg SHA.  */
+	//{"sha1h", 0x5e280800, 0xfffffc00, cryptosha2, 0, CRYPTO, OP2 (Fd, Fn), QL_2SAMES, 0},
+	//{"sha1su1", 0x5e281800, 0xfffffc00, cryptosha2, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME4S, 0},
+	//{"sha256su0", 0x5e282800, 0xfffffc00, cryptosha2, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME4S, 0},
+
+
+	///* Floating-point<->fixed-point conversions.  */
+	//{"scvtf", 0x1e020000, 0x7f3f0000, float2fix, 0, FP, OP3 (Fd, Rn, FBITS), QL_FIX2FP, F_FPTYPE | F_SF},
+	//{"ucvtf", 0x1e030000, 0x7f3f0000, float2fix, 0, FP, OP3 (Fd, Rn, FBITS), QL_FIX2FP, F_FPTYPE | F_SF},
+	//{"fcvtzs", 0x1e180000, 0x7f3f0000, float2fix, 0, FP, OP3 (Rd, Fn, FBITS), QL_FP2FIX, F_FPTYPE | F_SF},
+	//{"fcvtzu", 0x1e190000, 0x7f3f0000, float2fix, 0, FP, OP3 (Rd, Fn, FBITS), QL_FP2FIX, F_FPTYPE | F_SF},
+	///* Floating-point<->integer conversions.  */
+	//{"fcvtns", 0x1e200000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
+	//{"fcvtnu", 0x1e210000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
+	//{"scvtf", 0x1e220000, 0x7f3ffc00, float2int, 0, FP, OP2 (Fd, Rn), QL_INT2FP, F_FPTYPE | F_SF},
+	//{"ucvtf", 0x1e230000, 0x7f3ffc00, float2int, 0, FP, OP2 (Fd, Rn), QL_INT2FP, F_FPTYPE | F_SF},
+	//{"fcvtas", 0x1e240000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
+	//{"fcvtau", 0x1e250000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
+	//{"fmov", 0x1e260000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
+	//{"fmov", 0x1e270000, 0x7f3ffc00, float2int, 0, FP, OP2 (Fd, Rn), QL_INT2FP, F_FPTYPE | F_SF},
+	//{"fcvtps", 0x1e280000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
+	//{"fcvtpu", 0x1e290000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
+	//{"fcvtms", 0x1e300000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
+	//{"fcvtmu", 0x1e310000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
+	//{"fcvtzs", 0x1e380000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
+	//{"fcvtzu", 0x1e390000, 0x7f3ffc00, float2int, 0, FP, OP2 (Rd, Fn), QL_FP2INT, F_FPTYPE | F_SF},
+	//{"fmov", 0x9eae0000, 0xfffffc00, float2int, 0, FP, OP2 (Rd, VnD1), QL_XVD1, 0},
+	//{"fmov", 0x9eaf0000, 0xfffffc00, float2int, 0, FP, OP2 (VdD1, Rn), QL_VD1X, 0},
+	///* Floating-point conditional compare.  */
+	//{"fccmp", 0x1e200400, 0xff200c10, floatccmp, 0, FP, OP4 (Fn, Fm, NZCV, COND), QL_FCCMP, F_FPTYPE},
+	//{"fccmpe", 0x1e200410, 0xff200c10, floatccmp, 0, FP, OP4 (Fn, Fm, NZCV, COND), QL_FCCMP, F_FPTYPE},
+	///* Floating-point compare.  */
+	//{"fcmp", 0x1e202000, 0xff20fc1f, floatcmp, 0, FP, OP2 (Fn, Fm), QL_FP2, F_FPTYPE},
+	//{"fcmpe", 0x1e202010, 0xff20fc1f, floatcmp, 0, FP, OP2 (Fn, Fm), QL_FP2, F_FPTYPE},
+	//{"fcmp", 0x1e202008, 0xff20fc1f, floatcmp, 0, FP, OP2 (Fn, FPIMM0), QL_DST_SD, F_FPTYPE},
+	//{"fcmpe", 0x1e202018, 0xff20fc1f, floatcmp, 0, FP, OP2 (Fn, FPIMM0), QL_DST_SD, F_FPTYPE},
+	///* Floating-point data-processing (1 source).  */
+	//{"fmov", 0x1e204000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
+	//{"fabs", 0x1e20c000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
+	//{"fneg", 0x1e214000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
+	//{"fsqrt", 0x1e21c000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
+	//{"fcvt", 0x1e224000, 0xff3e7c00, floatdp1, OP_FCVT, FP, OP2 (Fd, Fn), QL_FCVT, F_FPTYPE | F_MISC},
+	//{"frintn", 0x1e244000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
+	//{"frintp", 0x1e24c000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
+	//{"frintm", 0x1e254000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
+	//{"frintz", 0x1e25c000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
+	//{"frinta", 0x1e264000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
+	//{"frintx", 0x1e274000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
+	//{"frinti", 0x1e27c000, 0xff3ffc00, floatdp1, 0, FP, OP2 (Fd, Fn), QL_FP2, F_FPTYPE},
+	///* Floating-point data-processing (2 source).  */
+	//{"fmul", 0x1e200800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
+	//{"fdiv", 0x1e201800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
+	//{"fadd", 0x1e202800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
+	//{"fsub", 0x1e203800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
+	//{"fmax", 0x1e204800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
+	//{"fmin", 0x1e205800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
+	//{"fmaxnm", 0x1e206800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
+	//{"fminnm", 0x1e207800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
+	//{"fnmul", 0x1e208800, 0xff20fc00, floatdp2, 0, FP, OP3 (Fd, Fn, Fm), QL_FP3, F_FPTYPE},
+	///* Floating-point data-processing (3 source).  */
+	//{"fmadd", 0x1f000000, 0xff208000, floatdp3, 0, FP, OP4 (Fd, Fn, Fm, Fa), QL_FP4, F_FPTYPE},
+	//{"fmsub", 0x1f008000, 0xff208000, floatdp3, 0, FP, OP4 (Fd, Fn, Fm, Fa), QL_FP4, F_FPTYPE},
+	//{"fnmadd", 0x1f200000, 0xff208000, floatdp3, 0, FP, OP4 (Fd, Fn, Fm, Fa), QL_FP4, F_FPTYPE},
+	//{"fnmsub", 0x1f208000, 0xff208000, floatdp3, 0, FP, OP4 (Fd, Fn, Fm, Fa), QL_FP4, F_FPTYPE},
+	///* Floating-point immediate.  */
+	//{"fmov", 0x1e201000, 0xff201fe0, floatimm, 0, FP, OP2 (Fd, FPIMM), QL_DST_SD, F_FPTYPE},
+	///* Floating-point conditional select.  */
+	//{"fcsel", 0x1e200c00, 0xff200c00, floatsel, 0, FP, OP4 (Fd, Fn, Fm, COND), QL_FP_COND, F_FPTYPE},
 };
 
 /*

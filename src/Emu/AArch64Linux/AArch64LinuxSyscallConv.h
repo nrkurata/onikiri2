@@ -1,9 +1,9 @@
-#ifndef __ARMLINUX_SYSCALLCONV_H__
-#define __ARMLINUX_SYSCALLCONV_H__
+#ifndef __AARCH64LINUX_SYSCALLCONV_H__
+#define __AARCH64LINUX_SYSCALLCONV_H__
 
-#include "../Utility/System/Syscall/SyscallConvIF.h"
-#include "../Utility/System/VirtualSystem.h"
-#include "../Utility/System/Syscall/Linux64SyscallConv.h"
+#include "Emu/Utility/System/Syscall/SyscallConvIF.h"
+#include "Emu/Utility/System/VirtualSystem.h"
+#include "Emu/Utility/System/Syscall/Linux64SyscallConv.h"
 
 namespace Onikiri {
 

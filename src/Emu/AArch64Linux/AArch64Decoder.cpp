@@ -1,8 +1,8 @@
 #include <pch.h>
 
-#include "../../SysDeps/Endian.h"
-#include "../Utility/DecoderUtility.h"
-#include "AArch64Decoder.h"
+#include "SysDeps/Endian.h"
+#include "Emu/Utility/DecoderUtility.h"
+#include "Emu/AArch64Linux/AArch64Decoder.h"
 
 using namespace std;
 using namespace boost;
@@ -11,190 +11,6 @@ using namespace Onikiri::EmulatorUtility;
 using namespace Onikiri::AArch64Linux;
 
 namespace {
-	/*
-		NOTE: Implementation below is copied from GNU Binutils.
-		You must re-implement when you release AArch64 to avoid GPL.
-	*/
-	/* Instruction fields.
-   Keep synced with fields.
-   src/opcodes/aarch64-opc.h
-   */
-	enum aarch64_field_kind
-	{
-		FLD_NIL,
-		FLD_cond2,
-		FLD_nzcv,
-		FLD_defgh,
-		FLD_abc,
-		FLD_imm19,
-		FLD_immhi,
-		FLD_immlo,
-		FLD_size,
-		FLD_vldst_size,
-		FLD_op,
-		FLD_Q,
-		FLD_Rt,
-		FLD_Rd,
-		FLD_Rn,
-		FLD_Rt2,
-		FLD_Ra,
-		FLD_op2,
-		FLD_CRm,
-		FLD_CRn,
-		FLD_op1,
-		FLD_op0,
-		FLD_imm3,
-		FLD_cond,
-		FLD_opcode,
-		FLD_cmode,
-		FLD_asisdlso_opcode,
-		FLD_len,
-		FLD_Rm,
-		FLD_Rs,
-		FLD_option,
-		FLD_S,
-		FLD_hw,
-		FLD_opc,
-		FLD_opc1,
-		FLD_shift,
-		FLD_type,
-		FLD_ldst_size,
-		FLD_imm6,
-		FLD_imm4,
-		FLD_imm5,
-		FLD_imm7,
-		FLD_imm8,
-		FLD_imm9,
-		FLD_imm12,
-		FLD_imm14,
-		FLD_imm16,
-		FLD_imm26,
-		FLD_imms,
-		FLD_immr,
-		FLD_immb,
-		FLD_immh,
-		FLD_N,
-		FLD_index,
-		FLD_index2,
-		FLD_sf,
-		FLD_H,
-		FLD_L,
-		FLD_M,
-		FLD_b5,
-		FLD_b40,
-		FLD_scale,
-	};
-
-	/* Field description.  
-	src/opcodes/aarch64-opc.c
-	*/
-	struct aarch64_field
-	{
-		int lsb;
-		int width;
-	};
-	const aarch64_field fields[] =
-	{
-		{  0,  0 },	/* NIL.  */
-		{  0,  4 },	/* cond2: condition in truly conditional-executed inst.  */
-		{  0,  4 },	/* nzcv: flag bit specifier, encoded in the "nzcv" field.  */
-		//{  5,  5 },	/* defgh: d:e:f:g:h bits in AdvSIMD modified immediate.  */
-		//{ 16,  3 },	/* abc: a:b:c bits in AdvSIMD modified immediate.  */
-		{  5, 19 },	/* imm19: e.g. in CBZ.  */
-		{  5, 19 },	/* immhi: e.g. in ADRP.  */
-		{ 29,  2 },	/* immlo: e.g. in ADRP.  */
-		//{ 22,  2 },	/* size: in most AdvSIMD and floating-point instructions.  */
-		//{ 10,  2 },	/* vldst_size: size field in the AdvSIMD load/store inst.  */
-		//{ 29,  1 },	/* op: in AdvSIMD modified immediate instructions.  */
-		//{ 30,  1 },	/* Q: in most AdvSIMD instructions.  */
-		{  0,  5 },	/* Rt: in load/store instructions.  */
-		{  0,  5 },	/* Rd: in many integer instructions.  */
-		{  5,  5 },	/* Rn: in many integer instructions.  */
-		{ 10,  5 },	/* Rt2: in load/store pair instructions.  */
-		{ 10,  5 },	/* Ra: in fp instructions.  */
-		//{  5,  3 },	/* op2: in the system instructions.  */
-		//{  8,  4 },	/* CRm: in the system instructions.  */
-		//{ 12,  4 },	/* CRn: in the system instructions.  */
-		//{ 16,  3 },	/* op1: in the system instructions.  */
-		//{ 19,  2 },	/* op0: in the system instructions.  */
-		{ 10,  3 },	/* imm3: in add/sub extended reg instructions.  */
-		{ 12,  4 },	/* cond: condition flags as a source operand.  */
-		//{ 12,  4 },	/* opcode: in advsimd load/store instructions.  */
-		//{ 12,  4 },	/* cmode: in advsimd modified immediate instructions.  */
-		//{ 13,  3 },	/* asisdlso_opcode: opcode in advsimd ld/st single element.  */
-		//{ 13,  2 },	/* len: in advsimd tbl/tbx instructions.  */
-		{ 16,  5 },	/* Rm: in ld/st reg offset and some integer inst.  */
-		{ 16,  5 },	/* Rs: in load/store exclusive instructions.  */
-		{ 13,  3 },	/* option: in ld/st reg offset + add/sub extended reg inst.  */
-		{ 12,  1 },	/* S: in load/store reg offset instructions.  */
-		{ 21,  2 },	/* hw: in move wide constant instructions.  */
-		{ 22,  2 },	/* opc: in load/store reg offset instructions.  */
-		{ 23,  1 },	/* opc1: in load/store reg offset instructions.  */
-		{ 22,  2 },	/* shift: in add/sub reg/imm shifted instructions.  */
-		//{ 22,  2 },	/* type: floating point type field in fp data inst.  */
-		{ 30,  2 },	/* ldst_size: size field in ld/st reg offset inst.  */
-		{ 10,  6 },	/* imm6: in add/sub reg shifted instructions.  */
-		//{ 11,  4 },	/* imm4: in advsimd ext and advsimd ins instructions.  */
-		{ 16,  5 },	/* imm5: in conditional compare (immediate) instructions.  */
-		{ 15,  7 },	/* imm7: in load/store pair pre/post index instructions.  */
-		//{ 13,  8 },	/* imm8: in floating-point scalar move immediate inst.  */
-		{ 12,  9 },	/* imm9: in load/store pre/post index instructions.  */
-		{ 10, 12 },	/* imm12: in ld/st unsigned imm or add/sub shifted inst.  */
-		{  5, 14 },	/* imm14: in test bit and branch instructions.  */
-		//{  5, 16 },	/* imm16: in exception instructions.  */
-		{  0, 26 },	/* imm26: in unconditional branch instructions.  */
-		{ 10,  6 },	/* imms: in bitfield and logical immediate instructions.  */
-		{ 16,  6 },	/* immr: in bitfield and logical immediate instructions.  */
-		//{ 16,  3 },	/* immb: in advsimd shift by immediate instructions.  */
-		//{ 19,  4 },	/* immh: in advsimd shift by immediate instructions.  */
-		{ 22,  1 },	/* N: in logical (immediate) instructions.  */
-		{ 11,  1 },	/* index: in ld/st inst deciding the pre/post-index.  */
-		{ 24,  1 },	/* index2: in ld/st pair inst deciding the pre/post-index.  */
-		{ 31,  1 },	/* sf: in integer data processing instructions.  */
-		//{ 11,  1 },	/* H: in advsimd scalar x indexed element instructions.  */
-		//{ 21,  1 },	/* L: in advsimd scalar x indexed element instructions.  */
-		//{ 20,  1 },	/* M: in advsimd scalar x indexed element instructions.  */
-		{ 31,  1 },	/* b5: in the test bit and branch instructions.  */
-		{ 19,  5 },	/* b40: in the test bit and branch instructions.  */
-		//{ 10,  6 },	/* scale: in the fixed-point scalar to fp converting inst.  */
-	};
-	const aarch64_field field_patterns[] =
-	{
-		{  0,  0 },	/* NIL.  */
-		{  0,  4 },	/* cond2: condition in truly conditional-executed inst.  */
-		{  0,  5 },	/* Rt: in load/store instructions.  */
-		{  0, 26 },	/* imm26: in unconditional branch instructions.  */
-		{  5,  5 },	/* Rn: in many integer instructions.  */
-		{  5, 14 },	/* imm14: in test bit and branch instructions.  */
-		{  5, 19 },	/* imm19: e.g. in CBZ.  */
-		{ 10,  3 },	/* imm3: in add/sub extended reg instructions.  */
-		{ 10,  5 },	/* Rt2: in load/store pair instructions.  */
-		{ 10,  6 },	/* imm6: in add/sub reg shifted instructions.  */
-		{ 10, 12 },	/* imm12: in ld/st unsigned imm or add/sub shifted inst.  */
-		{ 11,  1 },	/* index: in ld/st inst deciding the pre/post-index.  */
-		{ 12,  1 },	/* S: in load/store reg offset instructions.  */
-		{ 12,  4 },	/* cond: condition flags as a source operand.  */
-		{ 12,  9 },	/* imm9: in load/store pre/post index instructions.  */
-		{ 13,  3 },	/* option: in ld/st reg offset + add/sub extended reg inst.  */
-		{ 15,  7 },	/* imm7: in load/store pair pre/post index instructions.  */
-		{ 16,  5 },	/* imm5: in conditional compare (immediate) instructions.  */
-		{ 16,  6 },	/* immr: in bitfield and logical immediate instructions.  */
-		{ 19,  5 },	/* b40: in the test bit and branch instructions.  */
-		{ 21,  2 },	/* hw: in move wide constant instructions.  */
-		{ 22,  1 },	/* N: in logical (immediate) instructions.  */
-		{ 22,  2 },	/* opc: in load/store reg offset instructions.  */
-		{ 23,  1 },	/* opc1: in load/store reg offset instructions.  */
-		{ 24,  1 },	/* index2: in ld/st pair inst deciding the pre/post-index.  */
-		{ 29,  2 },	/* immlo: e.g. in ADRP.  */
-		{ 30,  2 },	/* ldst_size: size field in ld/st reg offset inst.  */
-		{ 31,  1 },	/* sf: in integer data processing instructions.  */
-	};
-	/*
-		NOTE: Implementation above is copied from GNU Binutils.
-		You must re-implement when you release AArch64 to avoid GPL.
-	*/
-
-
 	// –½—ß‚ÌŽí—Þ
 	enum InsnType {
 		UNDEF,				// Undefined or reserved
@@ -204,20 +20,6 @@ namespace {
 		MEMORY_LOAD_STORE,	// Load and store
 		BRANCH_EXCEPT,		// Branch and exception
 		SYSTEM,				// System instruction
-
-		//UNDEF,				// Undefined or reserved
-		//MEMORY_ADDR,		// Memory address calculation
-		//INT_ARITH_IMM,		// Arithmetic immediate
-		//INT_LOG_IMM,		// Logical immediate
-		//BIT_FIELD,			// Bitfield
-		//BRANCH_EXCEPT,		// Branch and exception
-		//SYSTEM,				// System instruction
-		//BRANCH,				// Branch
-		//TEST_BRANCH,		// Test branch
-		//LOAD_STORE,			// Load and store
-		//INT_ARITHREGCARRY_COND_LOGREG,	// Arithmetic register with carry, logical and conditional
-		//INT_ARITHREG,		// Arithmetic register
-		//SIMD_FP_CRYPTO,		// SIMD, floating point and crypto
 	};
 
 	const InsnType UND = UNDEF;
@@ -235,10 +37,6 @@ namespace {
 		MEMA, OPI, OPI, OPI, BRX, SYS, BRX, BRX,
 		// 0x8
 		LDST, LDST, OPI, OPI, LDST, LDST, OPF, OPF, 
-		//// 0x0
-		//MEMORY_ADDR, INT_ARITH_IMM, INT_LOG_IMM, BIT_FIELD, BRANCH_EXCEPT, SYSTEM, BRANCH, TEST_BRANCH,
-		//// 0x8
-		//LOAD_STORE, LOAD_STORE, INT_ARITHREGCARRY_COND_LOGREG, INT_ARITHREG, LOAD_STORE, LOAD_STORE,  SIMD_FP_CRYPTO, SIMD_FP_CRYPTO, 
 	};
 }
 
@@ -272,19 +70,18 @@ void AArch64Decoder::Decode(u32 codeWord, DecodedInsn* out)
 
 	switch (type) {
 	case OPI:
-		
+	case MEMA:
+		DecodeInt(codeWord, out);
 		break;
 	case OPF:
-		break;
-	case MEMA:
-		out->Imm[0] = ExtractBits<u64>(codeWord, 5, 19); // ADDR_PCREL21; immhi
-		out->Imm[1] = ExtractBits<u64>(codeWord, 29, 2); // ADDR_PCREL21; immlo
+		ASSERT(0, "FP/SIMD instructions are not supported yet.");
 		break;
 	case LDST:
+		DecodeLoadStore(codeWord, out);
 		break;
 	case BRX:
-		break;
 	case SYS:
+		DecodeBranch(codeWord, out);
 		break;
 	default:
 		ASSERT(0);	// never reached
@@ -293,112 +90,347 @@ void AArch64Decoder::Decode(u32 codeWord, DecodedInsn* out)
 
 }
 
-void AArch64Decoder::DecodeInt( u32 codeWord, u32 opcode, DecodedInsn* out )
+void AArch64Decoder::DecodeInt( u32 codeWord, DecodedInsn* out )
 {
-	out->Reg[0] = ExtractBits(codeWord, 0, 5); // Rd
-	out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
-	out->Reg[2] = ExtractBits(codeWord, 16, 5); // Rm
-
-	u32 exop;
-	switch(opcode){
-	case 0x1:
-		out->Imm[0] = ExtractBits<u64>(codeWord, 10, 12); // AIMM; imm12
-		out->Imm[1] = ExtractBits<u64>(codeWord, 22, 2); // AIMM; shift
-		break;
-	case 0x2:
-		exop = ExtractBits(codeWord, 23, 1);
-		if (exop)
+	if (ExtractBits(codeWord, 27, 1))
+	{
+		// register
+		if (ExtractBits(codeWord, 28, 1))
 		{
-			out->Imm[0] = ExtractBits<u64>(codeWord, 5, 16); // HALF; imm16
+			// non-shifted
+			u32 opcode = ExtractBits(codeWord, 22, 3);
+			switch (opcode)
+			{
+			case 0:
+				// Add/subtract (with carry)
+				out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+				out->Reg[0] = ExtractBits(codeWord, 16, 5); // Rm
+				out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+				out->Reg[2] = ExtractBits(codeWord, 0, 5); // Rd
+				break;
+			case 1:
+				// Conditional compare
+				if (ExtractBits(codeWord, 11, 1))
+				{
+					// (immediate)
+					out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+					out->Imm[1] = ExtractBits<u64>(codeWord, 16, 5); // imm5
+					out->Imm[2] = ExtractBits<u64>(codeWord, 12, 4); // cond
+					out->Imm[3] = ExtractBits<u64>(codeWord, 12, 4); // nzcv
+					out->Reg[0] = ExtractBits(codeWord, 5, 5); // Rn
+				}
+				else
+				{
+					// (register)
+					out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+					out->Imm[1] = ExtractBits<u64>(codeWord, 12, 4); // cond
+					out->Imm[2] = ExtractBits<u64>(codeWord, 12, 4); // nzcv
+					out->Reg[0] = ExtractBits(codeWord, 16, 5); // Rm
+					out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+				}
+				break;
+			case 2:
+				// Conditional select
+				out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+				out->Imm[1] = ExtractBits<u64>(codeWord, 12, 4); // cond
+				out->Reg[0] = ExtractBits(codeWord, 16, 5); // Rm
+				out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+				out->Reg[2] = ExtractBits(codeWord, 0, 5); // Rd
+				break;
+			case 3:
+				// Data-processing
+				if (ExtractBits(codeWord, 30, 1))
+				{
+					// (1 source)
+					out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+					out->Reg[0] = ExtractBits(codeWord, 5, 5); // Rn
+					out->Reg[1] = ExtractBits(codeWord, 0, 5); // Rd
+				}
+				else
+				{
+					// (2 sources)
+					out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+					out->Reg[0] = ExtractBits(codeWord, 16, 5); // Rn
+					out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+					out->Reg[2] = ExtractBits(codeWord, 0, 5); // Rd
+				}
+				break;
+			case 4:
+			case 5:
+			case 6:
+			case 7:
+				// Data-processing (3 sources)
+				out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+				out->Reg[0] = ExtractBits(codeWord, 16, 5); // Rn
+				out->Reg[1] = ExtractBits(codeWord, 10, 5); // Ra
+				out->Reg[2] = ExtractBits(codeWord, 5, 5); // Rn
+				out->Reg[3] = ExtractBits(codeWord, 0, 5); // Rd
+				break;
+			default:
+				ASSERT(0);	// never reached
+				break;
+			}
 		}
 		else
 		{
-			out->Imm[0] = ExtractBits<u64>(codeWord, 16, 6); // LIMM; immr
-			out->Imm[1] = ExtractBits<u64>(codeWord, 10, 6); // LIMM; imms
-			out->Imm[2] = ExtractBits<u64>(codeWord, 22, 1); // LIMM; N
+			// shifted
+			if (ExtractBits(codeWord, 24, 1))
+			{
+				// Add/subtract
+				if (ExtractBits(codeWord, 21, 1))
+				{
+					// (extended register)
+					out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+					out->Imm[1] = ExtractBits<u64>(codeWord, 13, 3); // option
+					out->Imm[2] = ExtractBits<u64>(codeWord, 10, 3); // imm3
+					out->Reg[0] = ExtractBits(codeWord, 16, 5); // Rm
+					out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+					out->Reg[2] = ExtractBits(codeWord, 0, 5); // Rd
+				}
+				else
+				{
+					// (shifted register)
+					out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+					out->Imm[1] = ExtractBits<u64>(codeWord, 22, 2); // shift
+					out->Imm[2] = ExtractBits<u64>(codeWord, 10, 6); // imm6
+					out->Reg[0] = ExtractBits(codeWord, 16, 5); // Rm
+					out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+					out->Reg[2] = ExtractBits(codeWord, 0, 5); // Rd
+				}
+			}
+			else
+			{
+				// Logical (shifted register)
+				out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+				out->Imm[1] = ExtractBits<u64>(codeWord, 22, 2); // shift
+				out->Imm[2] = ExtractBits<u64>(codeWord, 10, 6); // imm6
+				out->Reg[0] = ExtractBits(codeWord, 16, 5); // Rm
+				out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+				out->Reg[2] = ExtractBits(codeWord, 0, 5); // Rd
+			}
+		}
+	}
+	else {
+		// immediate
+		u32 opcode = ExtractBits(codeWord, 23, 3);
+		switch (opcode)
+		{
+		case 0:
+		case 1:
+			// PC-rel. addressing
+			out->Imm[0] = ExtractBits<u64>(codeWord, 29, 2); // immlo
+			out->Imm[1] = ExtractBits<u64>(codeWord, 5, 19); // immhi
+			out->Reg[0] = ExtractBits(codeWord, 0, 5); // Rd
+			break;
+		case 2:
+		case 3:
+			// Add/subtract (immediate)
+			out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+			out->Imm[1] = ExtractBits<u64>(codeWord, 22, 2); // shift
+			out->Imm[2] = ExtractBits<u64>(codeWord, 10, 12); // imm12
+			out->Reg[0] = ExtractBits(codeWord, 5, 5); // Rn
+			out->Reg[1] = ExtractBits(codeWord, 0, 5); // Rd
+			break;
+		case 4:
+			// Logical (immediate)
+		case 6:
+			// Bitfield
+			out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+			out->Imm[1] = ExtractBits<u64>(codeWord, 16, 6); // immr
+			out->Imm[2] = ExtractBits<u64>(codeWord, 10, 6); // imms
+			out->Reg[0] = ExtractBits(codeWord, 5, 5); // Rn
+			out->Reg[1] = ExtractBits(codeWord, 0, 5); // Rd
+			break;
+		case 5:
+			// Move wide (immediate)
+			out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+			out->Imm[1] = ExtractBits<u64>(codeWord, 21, 2); // hw
+			out->Imm[2] = ExtractBits<u64>(codeWord, 5, 16); // imm16
+			out->Reg[0] = ExtractBits(codeWord, 0, 5); // Rd
+			break;
+		case 7:
+			// Extract
+			out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+			out->Imm[1] = ExtractBits<u64>(codeWord, 10, 6); // imms
+			out->Reg[0] = ExtractBits(codeWord, 16, 5); // Rm
+			out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+			out->Reg[2] = ExtractBits(codeWord, 0, 5); // Rd
+			break;
+		default:
+			ASSERT(0);	// never reached
+			break;
+		}
+
+	}
+}
+
+void AArch64Decoder::DecodeLoadStore(u32 codeWord, DecodedInsn* out)
+{
+	u32 opcode = ExtractBits(codeWord, 28, 2);
+	u32 exop;
+	switch (opcode){
+	case 0x0:
+		u32 exop = ExtractBits(codeWord, 26, 1);
+		if (exop)
+		{
+			// Advanced SIMD Load/store
+		}
+		else
+		{
+			// Load/store exclusive
+			out->Reg[0] = ExtractBits(codeWord, 16, 5); // Rs
+			out->Reg[1] = ExtractBits(codeWord, 10, 5); // Rt2
+			out->Reg[2] = ExtractBits(codeWord, 5, 5); // Rn
+			out->Reg[3] = ExtractBits(codeWord, 0, 5); // Rt
+		}
+		break;
+	case 0x1:
+		// Load register (literal)
+		out->Reg[0] = ExtractBits(codeWord, 0, 5); // Rt(==Rd)
+		out->Imm[0] = ExtractBits<u64>(codeWord, 5, 19, true); // imm19
+		break;
+	case 0x2:
+		u32 exop = ExtractBits(codeWord, 23, 2);
+		switch (exop){
+		case 0x0:
+			// Load/store no-allocate pair (offset)
+			out->Imm[0] = ExtractBits<u64>(codeWord, 15, 7); // imm7
+			out->Reg[0] = ExtractBits(codeWord, 10, 5); // Rt2
+			out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+			out->Reg[2] = ExtractBits(codeWord, 0, 5); // Rt
+			break;
+		case 0x1:
+			// Load/store register pair (post-indexed)
+		case 0x3:
+			// Load/store register pair (pre-indexed)
+			out->Imm[0] = ExtractBits<u64>(codeWord, 15, 7); // imm7
+			out->Reg[0] = ExtractBits(codeWord, 10, 5); // Rt2
+			out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+			out->Reg[2] = ExtractBits(codeWord, 0, 5); // Rt
+
+			break;
+		case 0x2:
+			// Load/store register pair (offset)
+			out->Imm[0] = ExtractBits<u64>(codeWord, 15, 7); // imm7
+			out->Reg[0] = ExtractBits(codeWord, 10, 5); // Rt2
+			out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+			out->Reg[2] = ExtractBits(codeWord, 0, 5); // Rt
+			break;
+		default:
+			ASSERT(0);	// never reached
+			break;
 		}
 		break;
 	case 0x3:
-		out->Imm[0] = ExtractBits<u64>(codeWord, 10, 6); // IMMS; imms
-		out->Imm[1] = ExtractBits<u64>(codeWord, 16, 6); // IMMR; immr
-		break;
-	case 0xa:
-		exop = ExtractBits(codeWord, 22, 2);
-		if (exop == 0x1 || exop == 0x2)
+		if (ExtractBits(codeWord, 24, 1))
 		{
-			out->Imm[0] = ExtractBits<u64>(codeWord, 0, 4); // NZCV; nzcv
-			out->Imm[1] = ExtractBits<u64>(codeWord, 16, 5); // CCMP_IMM; imm5
+			// Load/store register (unsigned immediate)
+			out->Imm[0] = ExtractBits<u64>(codeWord, 10, 12); // imm12
+			out->Reg[0] = ExtractBits(codeWord, 5, 5); // Rn
+			out->Reg[1] = ExtractBits(codeWord, 0, 5); // Rt
 		}
 		else
 		{
-			// TODO: Shifted register
-			out->Imm[0] = ExtractBits<u64>(codeWord, 0, 0); 
-		}
-		break;
-	case 0xb:
-		exop = ExtractBits(codeWord, 28, 1);
-		if (exop)
-		{
-			out->Reg[3] = ExtractBits(codeWord, 10, 5); // Ra
-		} 
-		else
-		{
-			// TODO: Shifted and Extended register
-			out->Imm[0] = ExtractBits<u64>(codeWord, 0, 0); 
+			u32 exop = ExtractBits(codeWord, 10, 2);
+			switch (exop){
+			case 0x0:
+				// Load/store register (unscaled immediate)
+				out->Imm[0] = ExtractBits<u64>(codeWord, 12, 9); // imm9
+				out->Reg[0] = ExtractBits(codeWord, 5, 5); // Rn
+				out->Reg[1] = ExtractBits(codeWord, 0, 5); // Rt
+				break;
+			case 0x1:
+				// Load/store register (immediate post-indexed)
+			case 0x3:
+				// Load/store register (immediate pre-indexed)
+				out->Imm[0] = ExtractBits<u64>(codeWord, 12, 9, true); // imm9
+				out->Reg[0] = ExtractBits(codeWord, 5, 5); // Rn
+				out->Reg[1] = ExtractBits(codeWord, 0, 5); // Rt
+				break;
+			case 0x2:
+				if (ExtractBits(codeWord, 21, 1))
+				{
+					// Load/store register (register offset)
+					out->Imm[0] = ExtractBits<u64>(codeWord, 13, 3); // option
+					out->Imm[1] = ExtractBits<u64>(codeWord, 12, 1); // S
+					out->Reg[0] = ExtractBits(codeWord, 16, 5); // Rm
+					out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+					out->Reg[2] = ExtractBits(codeWord, 0, 5); // Rt
+				}
+				else
+				{
+					// Load/store register (unprivileged)
+					out->Imm[0] = ExtractBits<u64>(codeWord, 12, 9); // imm9
+					out->Reg[0] = ExtractBits(codeWord, 5, 5); // Rn
+					out->Reg[1] = ExtractBits(codeWord, 0, 5); // Rt
+				}
+				break;
+			default:
+				ASSERT(0);	// never reached
+				break;
+			}
 		}
 		break;
 	default:
 		ASSERT(0);	// never reached
 		break;
 	}
-}
-
-void AArch64Decoder::DecodeMemAddress( u32 codeWord, DecodedInsn* out )
-{
-	out->Imm[0] = ExtractBits<u64>(codeWord, 5, 19); // ADDR_PCREL21; immhi
-	out->Imm[1] = ExtractBits<u64>(codeWord, 29, 2); // ADDR_PCREL21; immlo
 }
 
 void AArch64Decoder::DecodeBranch( u32 codeWord, DecodedInsn* out )
 {
-	u32 opcode = ExtractBits(codeWord, 25, 3);
+	u32 opcode = ExtractBits(codeWord, 29, 3);
 	u32 exop;
 	switch(opcode){
+	case 0x0:
 	case 0x4:
-		exop = ExtractBits(codeWord, 28, 4);
-		switch (exop)
-		{
-		case 0x0:
-		case 0x4:
-			out->Imm[0] = ExtractBits<u64>(codeWord, 0, 26); // ADDR_PCREL26; imm26
-			break;
-		case 0x1:
-		case 0x2:
-		case 0x5:
-			out->Reg[0] = ExtractBits(codeWord, 0, 5); // Rt(==Rd)
-			out->Imm[0] = ExtractBits<u64>(codeWord, 5, 19); // ADDR_PCREL19; imm19
-			break;
-		case 0x6:
-			out->Imm[0] = ExtractBits<u64>(codeWord, 5, 16); // EXCEPTION; imm16
-			break;
-		default:
-			ASSERT(0);
-			break;
-		}
+		// Unconditional branch (immediate)
+		out->Imm[0] = ExtractBits<u64>(codeWord, 0, 26, true); // imm26, sign extended
 		break;
-	case 0x6:
-	case 0x7:
-		exop = ExtractBits(codeWord, 29, 1);
+	case 0x1:
+	case 0x5:
+		exop = ExtractBits(codeWord, 25, 1);
 		if (exop)
 		{
+			// Test & branch
 			out->Reg[0] = ExtractBits(codeWord, 0, 5); // Rt(==Rd)
-			out->Imm[0] = ExtractBits<u64>(codeWord, 5, 14); // ADDR_PCREL19; imm19
-			out->Imm[1] = ExtractBits<u64>(codeWord, 31, 1); // BIT_NUM; b5
-			out->Imm[2] = ExtractBits<u64>(codeWord, 19, 5); // BIT_NUM; b40
+			out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // b5
+			out->Imm[1] = ExtractBits<u64>(codeWord, 19, 5); // b40
+			out->Imm[2] = ExtractBits<u64>(codeWord, 5, 14, true); // imm14, sign extended
 		}
 		else
 		{
-			out->Reg[1] = ExtractBits(codeWord, 5, 5); // Rn
+			// Compare & branch
+			out->Reg[0] = ExtractBits(codeWord, 0, 5); // Rt(==Rd)
+			out->Imm[0] = ExtractBits<u64>(codeWord, 31, 1); // sf
+			out->Imm[1] = ExtractBits<u64>(codeWord, 5, 19); // imm19
+		}
+		break;
+	case 0x2:
+		// Conditional branch
+		out->Imm[0] = ExtractBits<u64>(codeWord, 5, 19); // imm19
+		out->Imm[1] = ExtractBits<u64>(codeWord, 0, 4); // cond
+		break;
+	case 0x6:
+		exop = ExtractBits(codeWord, 24, 2);
+		switch (exop)
+		{
+		case 0x0:
+			// Exception
+			out->Imm[0] = ExtractBits<u64>(codeWord, 5, 16); // imm16
+			break;
+		case 0x1:
+			// System
+			out->Reg[0] = ExtractBits(codeWord, 0, 5); // Rt
+			break;
+		case 0x2:
+		case 0x3:
+			// Unconditional branch (register)
+			out->Reg[0] = ExtractBits(codeWord, 5, 5); // Rn
+			break;
+		default:
+			ASSERT(0);	// never reached
+			break;
 		}
 		break;
 	default:

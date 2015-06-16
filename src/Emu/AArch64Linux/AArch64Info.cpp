@@ -1,6 +1,6 @@
 #include <pch.h>
-#include "AArch64Info.h"
-#include "AArch64Converter.h"
+#include "Emu/AArch64Linux/AArch64Info.h"
+#include "Emu/AArch64Linux/AArch64Converter.h"
 
 using namespace std;
 using namespace Onikiri;

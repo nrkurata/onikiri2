@@ -1,7 +1,7 @@
-#ifndef __ARMLINUX_ARMINFO_H__
-#define __ARMLINUX_ARMINFO_H__
+#ifndef __AARCH64LINUX_AARCH64INFO_H__
+#define __AARCH64LINUX_AARCH64INFO_H__
 
-#include "../../Interface/ISAInfo.h"
+#include "Interface/ISAInfo.h"
 
 namespace Onikiri {
 	namespace AArch64Linux {

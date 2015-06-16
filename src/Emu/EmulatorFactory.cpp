@@ -33,6 +33,7 @@
 #include "Emu/EmulatorFactory.h"
 #include "Emu/AlphaLinux/AlphaLinuxEmulator.h"
 #include "Emu/PPC64Linux/PPC64LinuxEmulator.h"
+#include "Emu/AArch64Linux/AArch64LinuxEmulator.h"
 
 using namespace Onikiri;
 
@@ -53,11 +54,14 @@ EmulatorIF* EmulatorFactory::Create(const String& systemName, SystemIF* simSyste
 	else if (systemName == "PPC64Linux") {
 		return new PPC64Linux::PPC64LinuxEmulator( simSystem );
 	}
+	else if (systemName == "AArch64Linux") {
+		return new AArch64Linux::AArch64LinuxEmulator(simSystem);
+	}
 	
 	THROW_RUNTIME_ERROR(
 		"Unknown system name specified.\n"
 		"This parameter must be one of the following strings : \n"
-		"[AlphaLinux,PPC64Linux]"
+		"[AlphaLinux,PPC64Linux,AArch64Linux]"
 	);
 
 	return 0;

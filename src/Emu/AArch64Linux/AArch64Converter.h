@@ -1,10 +1,10 @@
-#ifndef __ARMLINUX_ARMCONVERTER_H__
-#define __ARMLINUX_ARMCONVERTER_H__
+#ifndef __AARCH64LINUX_AARCH64CONVERTER_H__
+#define __AARCH64LINUX_AARCH64CONVERTER_H__
 
-#include "AArch64Info.h"
-#include "AArch64Decoder.h"
-#include "AArch64OpInfo.h"
-#include "../Utility/CommonConverter.h"
+#include "Emu/AArch64Linux/AArch64Info.h"
+#include "Emu/AArch64Linux/AArch64Decoder.h"
+#include "Emu/AArch64Linux/AArch64OpInfo.h"
+#include "Emu/Utility/CommonConverter.h"
 
 namespace Onikiri {
 
@@ -38,9 +38,11 @@ namespace Onikiri {
 			virtual OpDef* FinalizeOpDefs();
 
 			// OpDef
-			static OpDef m_OpDefsBase[];
+			static OpDef m_OpDefsBranch[];
 			static OpDef m_OpDefsLoadStore[];
+			static OpDef m_OpDefsDataProcess[];
 			static OpDef m_OpDefsSIMD[];
+			static OpDef m_OpDefsFP[];
 			static OpDef m_OpDefUnknown;
 
 			std::vector<OpDef> m_OpDefVector;

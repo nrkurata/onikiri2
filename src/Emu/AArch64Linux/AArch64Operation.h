@@ -1,11 +1,11 @@
-#ifndef __ARMLINUX_ARMOPERATION_H__
-#define __ARMLINUX_ARMOPERATION_H__
+#ifndef __AARCH64LINUX_AARCH64OPERATION_H__
+#define __AARCH64LINUX_AARCH64OPERATION_H__
 
-#include "../Utility/GenericOperation.h"
-#include "../Utility/System/Syscall/SyscallConvIF.h"
-#include "../Utility/System/ProcessState.h"
-#include "../../SysDeps/fenv.h"
-#include "../Utility/System/Memory/MemorySystem.h"
+#include "Emu/Utility/GenericOperation.h"
+#include "Emu/Utility/System/Syscall/SyscallConvIF.h"
+#include "Emu/Utility/System/ProcessState.h"
+#include "SysDeps/fenv.h"
+#include "Emu/Utility/System/Memory/MemorySystem.h"
 
 
 namespace Onikiri {
@@ -14,6 +14,153 @@ namespace Operation {
 
 using namespace EmulatorUtility::Operation;
 
+template <int OperandIndex, typename SFType>
+struct AArch64SrcOperand : public std::unary_function<EmulatorUtility::OpEmulationState, RegisterType>
+{
+	typedef RegisterType type;
+	RegisterType operator()(EmulatorUtility::OpEmulationState* opState)
+	{
+		type src = opState->GetSrc(OperandIndex);
+		return SFType()(opState) ? src : static_cast<u64>(static_cast<u32>(src));
+	}
+};
+
+template <int OperandIndex, typename SFType>
+class AArch64DstOperand
+{
+public:
+	typedef RegisterType type;
+	static void SetOperand(OpEmulationState* opState, RegisterType value)
+	{
+		value = SFType()(opState) ? value : static_cast<u64>(static_cast<u32>(value));
+		opState->SetDst(OperandIndex, value);
+	}
+};
+
+
+template <typename Type, typename TSrc, typename TBegin, typename TConcat>
+struct AArch64BitConcateNate : public std::unary_function<OpEmulationState*, Type>
+{
+	Type operator()(OpEmulationState* opState)
+	{
+		Type value = static_cast<Type>(TSrc()(opState));
+		Type concat = static_cast<Type>(TConcat()(opState));
+
+		return (value | (concat << (size_t)TBegin()(opState)));
+	}
+};
+
+
+template <typename Type, typename TSrc, typename TPos>
+struct AArch64BitTest : public std::unary_function<OpEmulationState*, Type>
+{
+	Type operator()(OpEmulationState* opState)
+	{
+		Type value = static_cast<Type>(TSrc()(opState));
+		return (value & ((Type)1 << (size_t)TPos()(opState)));
+	}
+};
+
+template <typename Type>
+struct AArch64CurrentPC : public std::unary_function<OpEmulationState*, Type>
+{
+	Type operator()(OpEmulationState* opState)
+	{
+		return static_cast<Type>current_pc(opState);
+	}
+};
+
+template <typename TSrc, typename TFrom, typename TTo>
+struct AArch64Sext : public std::unary_function<OpEmulationState*, Type>
+{
+	Type operator()(OpEmulationState* opState)
+	{
+		return static_cast<TTo>(cast_to_signed(TSrc()(opState)));
+	}
+};
+
+// calculate condition
+
+template <typename Type>
+inline Type AArch64CondN(Type CPSR)
+{
+	return (CPSR >> 31) & 1;
+}
+
+template <typename Type>
+inline Type AArch64CondZ(Type CPSR)
+{
+	return (CPSR >> 30) & 1;
+}
+
+template <typename Type>
+inline Type AArch64CondC(Type CPSR)
+{
+	return (CPSR >> 29) & 1;
+}
+
+template <typename Type>
+inline Type AArch64CondV(Type CPSR)
+{
+	return (CPSR >> 28) & 1;
+}
+
+template <typename TCond, typename TCPSR>
+struct AArch64CondCalc : public std::unary_function<EmulatorUtility::OpEmulationState, RegisterType>
+{
+	enum{
+		EQ = 0, NE, CS, CC,
+		MI, PL, VS, VC,
+		HI, LS, GE, LT,
+		GT, LE, AL, NV
+	};
+
+	bool operator()(EmulatorUtility::OpEmulationState* opState) const
+	{
+		switch (TCond()(opState)){
+		case EQ:
+			return AArch64CondZ(TCPSR()(opState)) == 1;
+		case NE:
+			return !AArch64CondZ(TCPSR()(opState));
+		case CS:
+			return AArch64CondC(TCPSR()(opState)) == 1;
+		case CC:
+			return !AArch64CondC(TCPSR()(opState));
+		case MI:
+			return AArch64CondN(TCPSR()(opState)) == 1;
+		case PL:
+			return !AArch64CondN(TCPSR()(opState));
+		case VS:
+			return AArch64CondV(TCPSR()(opState)) == 1;
+		case VC:
+			return !AArch64CondV(TCPSR()(opState));
+		case HI:
+			return AArch64CondC(TCPSR()(opState)) && !AArch64CondZ(TCPSR()(opState));
+		case LS:
+			return !AArch64CondC(TCPSR()(opState)) || AArch64CondZ(TCPSR()(opState));
+		case GE:
+			return AArch64CondN(TCPSR()(opState)) == AArch64CondV(TCPSR()(opState));
+		case LT:
+			return AArch64CondN(TCPSR()(opState)) != AArch64CondV(TCPSR()(opState));
+		case GT:
+			return !AArch64CondZ(TCPSR()(opState)) &&
+				(AArch64CondN(TCPSR()(opState)) == AArch64CondV(TCPSR()(opState)));
+		case LE:
+			return AArch64CondZ(TCPSR()(opState)) ||
+				(AArch64CondN(TCPSR()(opState)) != AArch64CondV(TCPSR()(opState)));
+		case AL:
+			return true;
+		case NV:
+			// never reached
+			return false;
+		default:
+			// never reached
+			return false;
+		}
+	}
+};
+
+/*
 // N, Zƒtƒ‰ƒO‚ðŒvŽZ‚·‚é
 template <typename Type>
 inline Type AArch64CalcFlagNZ(Type result)
@@ -393,87 +540,7 @@ struct AArch64ShiftOperation : public std::unary_function<EmulatorUtility::OpEmu
 	}
 };
 
-// calculate condition
-
-template <typename Type>
-inline Type AArch64CondN(Type CPSR)
-{
-	return (CPSR >> 31) & 1;
-}
-
-template <typename Type>
-inline Type AArch64CondZ(Type CPSR)
-{
-	return (CPSR >> 30) & 1;
-}
-
-template <typename Type>
-inline Type AArch64CondC(Type CPSR)
-{
-	return (CPSR >> 29) & 1;
-}
-
-template <typename Type>
-inline Type AArch64CondV(Type CPSR)
-{
-	return (CPSR >> 28) & 1;
-}
-
-template <typename TCond, typename TCPSR>
-struct AArch64CondCalc : public std::unary_function<EmulatorUtility::OpEmulationState, RegisterType>
-{
-	enum{
-		EQ = 0,	NE,	CS,	CC,
-		MI,	PL,	VS,	VC,
-		HI,	LS,	GE,	LT,
-		GT,	LE,	AL,	NV
-	};
-
-	bool operator()(EmulatorUtility::OpEmulationState* opState) const
-	{
-		switch(TCond()(opState)){
-		case EQ:
-			return AArch64CondZ(TCPSR()(opState)) == 1;
-		case NE:
-			return !AArch64CondZ(TCPSR()(opState));
-		case CS:
-			return AArch64CondC(TCPSR()(opState)) == 1;
-		case CC:
-			return !AArch64CondC(TCPSR()(opState));
-		case MI:
-			return AArch64CondN(TCPSR()(opState)) == 1;
-		case PL:
-			return !AArch64CondN(TCPSR()(opState));
-		case VS:
-			return AArch64CondV(TCPSR()(opState)) == 1;
-		case VC:
-			return !AArch64CondV(TCPSR()(opState));
-		case HI:
-			return AArch64CondC(TCPSR()(opState)) && !AArch64CondZ(TCPSR()(opState));
-		case LS:
-			return !AArch64CondC(TCPSR()(opState)) || AArch64CondZ(TCPSR()(opState));
-		case GE:
-			return AArch64CondN(TCPSR()(opState)) == AArch64CondV(TCPSR()(opState));
-		case LT:
-			return AArch64CondN(TCPSR()(opState)) != AArch64CondV(TCPSR()(opState));
-		case GT:
-			return !AArch64CondZ(TCPSR()(opState)) &&
-				( AArch64CondN(TCPSR()(opState)) == AArch64CondV(TCPSR()(opState)) );
-		case LE:
-			return AArch64CondZ(TCPSR()(opState)) ||
-				( AArch64CondN(TCPSR()(opState)) != AArch64CondV(TCPSR()(opState)) );
-		case AL:
-			return true;
-		case NV:
-			// never reached
-			return false;
-		default:
-			// never reached
-			return false;
-		}
-	}
-};
-
+*/
 } // namespace Operation {
 } // namespace ARMLinux {
 } // namespace Onikiri
