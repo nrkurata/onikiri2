@@ -270,7 +270,7 @@ void AArch64Decoder::DecodeLoadStore(u32 codeWord, DecodedInsn* out)
 	u32 exop;
 	switch (opcode){
 	case 0x0:
-		u32 exop = ExtractBits(codeWord, 26, 1);
+		exop = ExtractBits(codeWord, 26, 1);
 		if (exop)
 		{
 			// Advanced SIMD Load/store
@@ -290,7 +290,7 @@ void AArch64Decoder::DecodeLoadStore(u32 codeWord, DecodedInsn* out)
 		out->Imm[0] = ExtractBits<u64>(codeWord, 5, 19, true); // imm19
 		break;
 	case 0x2:
-		u32 exop = ExtractBits(codeWord, 23, 2);
+		exop = ExtractBits(codeWord, 23, 2);
 		switch (exop){
 		case 0x0:
 			// Load/store no-allocate pair (offset)
@@ -331,7 +331,7 @@ void AArch64Decoder::DecodeLoadStore(u32 codeWord, DecodedInsn* out)
 		}
 		else
 		{
-			u32 exop = ExtractBits(codeWord, 10, 2);
+			exop = ExtractBits(codeWord, 10, 2);
 			switch (exop){
 			case 0x0:
 				// Load/store register (unscaled immediate)

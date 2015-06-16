@@ -39,22 +39,13 @@
 
 namespace Onikiri
 {
-<<<<<<< HEAD
 	// Instruction Set Architecture Type
 	enum ISA_TYPE
 	{
 		ISA_ALPHA,	// Alpha
-		ISA_PPC64,	// PowerPC 64bit
-		ISA_AARCH64,// ARMv8 64bit
-	};
-=======
-    // Instruction Set Architecture Type
-    enum ISA_TYPE
-    {
-        ISA_ALPHA,  // Alpha
-        ISA_PPC64,  // PowerPC 64bit
+        ISA_PPC64,	// PowerPC 64bit
+        ISA_AARCH64,// ARMv8 64bit
     };
->>>>>>> master
 
     class ISAInfoIF
     {

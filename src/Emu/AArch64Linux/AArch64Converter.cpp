@@ -843,9 +843,9 @@ AArch64Converter::OpDef AArch64Converter::m_OpDefsDataProcess[] =
 	/** Immediate **/
 	/* Add/subtract (immediate).  */
 	{ "add", 0x11000000, 0x7f000000, 1, { { OpClassCode::iALU, { R0, -1 }, { I0, I1, I2, R1, -1, -1 }, Set< D0, IntAdd< u32, S0, S1> > } } },
-	{ "adds", 0x31000000, 0x7f000000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, I0, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntAdd, CarryOfAdd, AArch64AddOverflowFrom) } } },
+	//{ "adds", 0x31000000, 0x7f000000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, I0, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntAdd, CarryOfAdd, AArch64AddOverflowFrom) } } },
 	{ "sub", 0x51000000, 0x7f000000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, I0, -1, -1, -1, -1 }, Set< D0, IntSub< u32, S0, S1> > } } },
-	{ "subs", 0x71000000, 0x7f000000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, I0, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntSub, AArch64NotBorrowFrom, AArch64SubOverflowFrom) } } },
+	//{ "subs", 0x71000000, 0x7f000000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, I0, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntSub, AArch64NotBorrowFrom, AArch64SubOverflowFrom) } } },
 	/* Bitfield.  */
 	{ "sbfm", 0x13000000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, S0 > } } },
 	{ "bfm", 0x33000000, 0x7f800000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, S0 > } } },
@@ -868,19 +868,19 @@ AArch64Converter::OpDef AArch64Converter::m_OpDefsDataProcess[] =
 	/** Register **/
 	/* Add/subtract (extended register).  */
 	{ "add", 0x0b200000, 0x7fe00000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, -1, -1, -1, -1 }, Set< D0, IntAdd< u32, S0, S1> > } } },
-	{ "adds", 0x2b200000, 0x7fe00000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntAdd, CarryOfAdd, AArch64AddOverflowFrom) } } },
+	//{ "adds", 0x2b200000, 0x7fe00000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntAdd, CarryOfAdd, AArch64AddOverflowFrom) } } },
 	{ "sub", 0x4b200000, 0x7fe00000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, -1, -1, -1, -1 }, Set< D0, IntSub< u32, S0, S1> > } } },
-	{ "subs", 0x6b200000, 0x7fe00000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntSub, AArch64NotBorrowFrom, AArch64SubOverflowFrom) } } },
+	//{ "subs", 0x6b200000, 0x7fe00000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntSub, AArch64NotBorrowFrom, AArch64SubOverflowFrom) } } },
 	/* Add/subtract (shifted register).  */
 	{ "add", 0x0b000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, I0, -1, -1, -1, -1 }, Set< D0, IntAdd< u32, S0, S1> > } } },
-	{ "adds", 0x2b000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntAdd, CarryOfAdd, AArch64AddOverflowFrom) } } },
+	//{ "adds", 0x2b000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntAdd, CarryOfAdd, AArch64AddOverflowFrom) } } },
 	{ "sub", 0x4b000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, I0, -1, -1, -1, -1 }, Set< D0, IntSub< u32, S0, S1> > } } },
-	{ "subs", 0x6b000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntSub, AArch64NotBorrowFrom, AArch64SubOverflowFrom) } } },
+	//{ "subs", 0x6b000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNC_PSR_ARITH(IntSub, AArch64NotBorrowFrom, AArch64SubOverflowFrom) } } },
 	/* Add/subtract (with carry).  */
-	{ "adc", 0x1a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, CPST, -1, -1, -1 }, ARMFLAGFUNC32(AArch64IntAddwithCarry) } } },
-	{ "adcs", 0x3a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNCWITHCARRY_PSR(AArch64IntAddwithCarry, AArch64CarryOfAddWithCarry, AArch64AddOverflowFromWithCarry) } } },
-	{ "sbc", 0x5a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, CPST, -1, -1, -1 }, ARMFLAGFUNC32(AArch64IntSubwithBorrow) } } },
-	{ "sbcs", 0x7a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNCWITHCARRY_PSR(AArch64IntSubwithBorrow, AArch64NotBorrowFromWithBorrow, AArch64SubOverflowFromWithBorrow) } } },
+	//{ "adc", 0x1a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, CPST, -1, -1, -1 }, ARMFLAGFUNC32(AArch64IntAddwithCarry) } } },
+	//{ "adcs", 0x3a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNCWITHCARRY_PSR(AArch64IntAddwithCarry, AArch64CarryOfAddWithCarry, AArch64AddOverflowFromWithCarry) } } },
+	//{ "sbc", 0x5a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, CPST, -1, -1, -1 }, ARMFLAGFUNC32(AArch64IntSubwithBorrow) } } },
+	//{ "sbcs", 0x7a000000, 0x7fe0fc00, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, CPST, -1, -1, -1 }, ARMFUNCWITHCARRY_PSR(AArch64IntSubwithBorrow, AArch64NotBorrowFromWithBorrow, AArch64SubOverflowFromWithBorrow) } } },
 	/* Conditional compare (immediate).  */
 	{ "ccmn", 0x3a400800, 0x7fe00c10, 1, { { OpClassCode::iALU, { CPST, -1 }, { R1, I0, I1, -1, -1 }, Set< D0, S0 > } } },
 	{ "ccmp", 0x7a400800, 0x7fe00c10, 1, { { OpClassCode::iALU, { CPST, -1 }, { R1, I0, I1, -1, -1 }, Set< D0, S0 > } } },
@@ -936,12 +936,12 @@ AArch64Converter::OpDef AArch64Converter::m_OpDefsDataProcess[] =
 	} },
 	{ "umulh", 0x9bc07c00, 0xffe08000, 1, { { OpClassCode::iALU, { T0, -1 }, { R1, R2, -1, -1, -1 }, Set< D0, IntUMulh64<S0, S1> > } } },
 	/* Logical (shifted register).  */
-	{ "and", 0xa000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, I1, -1 }, Set< D0, BitAnd<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
-	{ "bic", 0xa200000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitAnd<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
-	{ "orr", 0x2a000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitOr<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
-	{ "orn", 0x2a200000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitOrNot<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
-	{ "eor", 0x4a000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitXor<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
-	{ "eon", 0x4a200000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitXorNot<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	//{ "and", 0xa000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, I1, -1 }, Set< D0, BitAnd<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	//{ "bic", 0xa200000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitAnd<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	//{ "orr", 0x2a000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitOr<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	//{ "orn", 0x2a200000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitOrNot<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	//{ "eor", 0x4a000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitXor<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
+	//{ "eon", 0x4a200000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, -1 }, { R1, R2, I0, -1, -1 }, Set< D0, BitXorNot<u64, S0, AArch64ShiftOperation<u64, S1, S2, S3>> > } } },
 	{ "ands", 0x6a000000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, I0, -1, -1 }, Set< D0, S0 > } } },
 	{ "bics", 0x6a200000, 0x7f200000, 1, { { OpClassCode::iALU, { R0, CPST }, { R1, R2, I0, -1, -1 }, Set< D0, S0 > } } },
 
@@ -1444,6 +1444,7 @@ AArch64Converter::OpDef AArch64Converter::m_OpDefsSIMD[] =
 
 AArch64Converter::OpDef AArch64Converter::m_OpDefsFP[] =
 {
+	{ "nop", 0xd503201f, 0xffffffff, 1, { { OpClassCode::iNOP, { -1, -1 }, { -1, -1, -1, -1, -1 }, NoOperation } } }, // dummy
 	///* Crypto AES.  */
 	//{"aese", 0x4e284800, 0xfffffc00, cryptoaes, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME16B, 0},
 	//{"aesd", 0x4e285800, 0xfffffc00, cryptoaes, 0, CRYPTO, OP2 (Vd, Vn), QL_V2SAME16B, 0},
@@ -1538,8 +1539,11 @@ AArch64Converter::OpDef AArch64Converter::m_OpDefsFP[] =
 
 AArch64Converter::AArch64Converter()
 {
-	AddToOpMap(m_OpDefsBase, sizeof(m_OpDefsBase)/sizeof(OpDef));
+	AddToOpMap(m_OpDefsBranch, sizeof(m_OpDefsBranch) / sizeof(OpDef));
 	AddToOpMap(m_OpDefsLoadStore, sizeof(m_OpDefsLoadStore)/sizeof(OpDef));
+	AddToOpMap(m_OpDefsDataProcess, sizeof(m_OpDefsDataProcess) / sizeof(OpDef));
+	//AddToOpMap(m_OpDefsSIMD, sizeof(m_OpDefsSIMD) / sizeof(OpDef));
+	//AddToOpMap(m_OpDefsFP, sizeof(m_OpDefsFP) / sizeof(OpDef));
 	AddToOpMap(m_CreatedOpDefs, m_CreatedOpDefsSize);
 	if (IsSplitLoadStoreEnabled()) {
 		// <TODO> split load/store

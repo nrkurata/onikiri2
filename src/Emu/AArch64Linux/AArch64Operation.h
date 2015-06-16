@@ -30,7 +30,7 @@ class AArch64DstOperand
 {
 public:
 	typedef RegisterType type;
-	static void SetOperand(OpEmulationState* opState, RegisterType value)
+	static void SetOperand(EmulatorUtility::OpEmulationState* opState, RegisterType value)
 	{
 		value = SFType()(opState) ? value : static_cast<u64>(static_cast<u32>(value));
 		opState->SetDst(OperandIndex, value);
@@ -39,9 +39,9 @@ public:
 
 
 template <typename Type, typename TSrc, typename TBegin, typename TConcat>
-struct AArch64BitConcateNate : public std::unary_function<OpEmulationState*, Type>
+struct AArch64BitConcateNate : public std::unary_function<EmulatorUtility::OpEmulationState*, Type>
 {
-	Type operator()(OpEmulationState* opState)
+	Type operator()(EmulatorUtility::OpEmulationState* opState)
 	{
 		Type value = static_cast<Type>(TSrc()(opState));
 		Type concat = static_cast<Type>(TConcat()(opState));
@@ -52,9 +52,9 @@ struct AArch64BitConcateNate : public std::unary_function<OpEmulationState*, Typ
 
 
 template <typename Type, typename TSrc, typename TPos>
-struct AArch64BitTest : public std::unary_function<OpEmulationState*, Type>
+struct AArch64BitTest : public std::unary_function<EmulatorUtility::OpEmulationState*, Type>
 {
-	Type operator()(OpEmulationState* opState)
+	Type operator()(EmulatorUtility::OpEmulationState* opState)
 	{
 		Type value = static_cast<Type>(TSrc()(opState));
 		return (value & ((Type)1 << (size_t)TPos()(opState)));
@@ -62,18 +62,18 @@ struct AArch64BitTest : public std::unary_function<OpEmulationState*, Type>
 };
 
 template <typename Type>
-struct AArch64CurrentPC : public std::unary_function<OpEmulationState*, Type>
+struct AArch64CurrentPC : public std::unary_function<EmulatorUtility::OpEmulationState*, Type>
 {
-	Type operator()(OpEmulationState* opState)
+	Type operator()(EmulatorUtility::OpEmulationState* opState)
 	{
 		return static_cast<Type>current_pc(opState);
 	}
 };
 
 template <typename TSrc, typename TFrom, typename TTo>
-struct AArch64Sext : public std::unary_function<OpEmulationState*, Type>
+struct AArch64Sext : public std::unary_function<EmulatorUtility::OpEmulationState*, TTo>
 {
-	Type operator()(OpEmulationState* opState)
+	TTo operator()(EmulatorUtility::OpEmulationState* opState)
 	{
 		return static_cast<TTo>(cast_to_signed(TSrc()(opState)));
 	}
