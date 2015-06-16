@@ -34,8 +34,8 @@
 // va_copy macro is not defined in some environment.
 //
 
-#ifndef __ONIKIRI_SYSDEPS_STDARG_H
-#define __ONIKIRI_SYSDEPS_STDARG_H
+#ifndef SYSDEPS_STDARG_H
+#define SYSDEPS_STDARG_H
 
 #include "SysDeps/host_type.h"
 
@@ -43,13 +43,13 @@
 #include <stdarg.h>
 
 #ifdef COMPILER_IS_MSVC
-	#if _MSC_VER < 1800 
-		#define va_copy(x, y) ((x) = (y))
-	#endif
-#elif defined COMPILER_IS_GCC  
-	#include <sys/types.h>
+    #if _MSC_VER < 1800 
+        #define va_copy(x, y) ((x) = (y))
+    #endif
+#elif defined(COMPILER_IS_GCC) || defined(COMPILER_IS_CLANG)
+    #include <sys/types.h>
 #else
-	#define va_copy(x, y) ((x) = (y))
+    #define va_copy(x, y) ((x) = (y))
 #endif
 
 #endif

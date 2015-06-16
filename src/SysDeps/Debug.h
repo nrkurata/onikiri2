@@ -45,21 +45,21 @@
 
 #ifdef COMPILER_IS_MSVC
 
-	#define ONIKIRI_DEBUG_FILE     __FILE__
-	#define ONIKIRI_DEBUG_LINE     __LINE__
-	#define ONIKIRI_DEBUG_FUNCTION __FUNCSIG__
+    #define ONIKIRI_DEBUG_FILE     __FILE__
+    #define ONIKIRI_DEBUG_LINE     __LINE__
+    #define ONIKIRI_DEBUG_FUNCTION __FUNCSIG__
 
-#elif defined COMPILER_IS_GCC  
+#elif defined (COMPILER_IS_GCC) || defined(COMPILER_IS_CLANG)
 
-	#define ONIKIRI_DEBUG_FILE     __FILE__
-	#define ONIKIRI_DEBUG_LINE     __LINE__
-	#define ONIKIRI_DEBUG_FUNCTION __PRETTY_FUNCTION__
+    #define ONIKIRI_DEBUG_FILE     __FILE__
+    #define ONIKIRI_DEBUG_LINE     __LINE__
+    #define ONIKIRI_DEBUG_FUNCTION __PRETTY_FUNCTION__
 
 #else
 
-	#define ONIKIRI_DEBUG_FILE     __FILE__
-	#define ONIKIRI_DEBUG_LINE     __LINE__
-	#define ONIKIRI_DEBUG_FUNCTION __FUNCTION__
+    #define ONIKIRI_DEBUG_FILE     __FILE__
+    #define ONIKIRI_DEBUG_LINE     __LINE__
+    #define ONIKIRI_DEBUG_FUNCTION __FUNCTION__
 
 #endif
 
@@ -71,7 +71,7 @@
 
 #define ONIKIRI_BREAK() __debugbreak()
 
-#elif defined COMPILER_IS_GCC  
+#elif defined(COMPILER_IS_GCC) || defined(COMPILER_IS_CLANG)
 
 #define ONIKIRI_BREAK() __builtin_trap()
 

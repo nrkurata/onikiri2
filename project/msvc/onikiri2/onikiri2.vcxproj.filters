@@ -876,9 +876,6 @@
     <ClInclude Include="..\..\..\src\Sim\Memory\MemOrderManager\MemOrderOperations.h">
       <Filter>src\Sim\Memory\MemOrderManager</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\SysDeps\Boost\asio.h">
-      <Filter>src\SysDeps\Boost</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\src\Sim\Op\OpStatus.h">
       <Filter>src\Sim\Op</Filter>
     </ClInclude>
@@ -1010,6 +1007,9 @@
     </ClInclude>
     <ClInclude Include="..\..\..\src\Sim\Op\OpClassStatistics.h">
       <Filter>src\Sim\Op</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\SysDeps\Boost\asio.h">
+      <Filter>src\SysDeps\Boost</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\src\Emu\AArch64Linux\AArch64Converter.h">
       <Filter>src\Emu\AArch64Linux</Filter>
