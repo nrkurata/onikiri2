@@ -1,5 +1,5 @@
 # 
-# onikiri2╓Р╔с╔К╔и╓╧╓КMakefile
+# onikiri2Ц┌▓Ц┐⌠Ц┐╚Ц┐┴Ц│≥Ц┌▀Makefile
 #
 
 VCPROJ2MAKE      = ../../tool/vcproj2make/version_selecter.pl
@@ -51,18 +51,18 @@ zlib : $(ZLIB_MAKE_DIR)/Makefile
 $(ZLIB_MAKEFILE) : $(ZLIB_MAKE_DIR)/configure
 	cd $(ZLIB_MAKE_DIR) ; ./configure
 
-# .svn╟й╡╪╓о╔Ё╔т║╪╓╥╓й╓╓║╔"."╓Д".."╓Б╫ЭЁ╟
+# .svnД╩╔Д╦▀Ц│╞Ц┌ЁЦ┐■Ц┐╪Ц│≈Ц│╙Ц│└О╪▌"."Ц┌└".."Ц┌┌И≥╓Е╓√
 NON_SVN_PATTERN = -not -path "*/.svn*" -not -name ".*"
 
-# configure╓╛zconf.h╓Рconfigure╓╥╓©╢д╤╜мя╓к╫Я╓╜╢╧╓╗╓ф╓╥╓ч╓╕╓н╓г
-# Windows╓г╔Ё╔С╔я╔╓╔К╓г╓╜╓й╓╞╓й╓И╓й╓╓╓Х╓╕╓к╔╫║╪╔╧╓Р╔Ё╔т║╪╓╧╓К
+# configureЦ│▄zconf.hЦ┌▓configureЦ│≈Ц│÷Г▓╟Е╒┐Г■╗Ц│╚Ф⌡╦Ц│█Ф▐⌡Ц│┬Ц│╕Ц│≈Ц│╬Ц│├Ц│╝Ц│╖
+# WindowsЦ│╖Ц┌ЁЦ┐ЁЦ┐▒Ц┌╓Ц┐╚Ц│╖Ц│█Ц│╙Ц│▐Ц│╙Ц┌┴Ц│╙Ц│└Ц┌┬Ц│├Ц│╚Ц┌╫Ц┐╪Ц┌╧Ц┌▓Ц┌ЁЦ┐■Ц┐╪Ц│≥Ц┌▀
 $(ZLIB_MAKE_DIR)/configure : $(ZLIB_SRC_DIR)/zlib.h
 	cd $(ZLIB_SRC_DIR); find ./ $(NON_SVN_PATTERN) -type d -print0 | xargs -0 -i mkdir -p $(CURDIR)/$(ZLIB_MAKE_DIR)/{}
 	cd $(ZLIB_SRC_DIR); find ./ $(NON_SVN_PATTERN) -type f -print0 | xargs -0 -i cp -f {} $(CURDIR)/$(ZLIB_MAKE_DIR)/{}
 	chmod u+x $(ZLIB_MAKE_DIR)/configure
 
 #
-# --- boost ╔╒║╪╔╚╔╓╔ж╓не╦Ё╚
+# --- boost Ц┌╒Ц┐╪Ц┌╚Ц┌╓Ц┐√Ц│╝Е╠∙И√▀
 #
 boost : zlib
 	$(MAKE) -C ./boost
